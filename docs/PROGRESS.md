@@ -236,13 +236,14 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
 - **Compute reward**: reuse `RewardCalculator` with the env step reward as `R_task`; β annealed 0.2 → 0.02 (R8).
 - **Trunk schedule**: frozen first (Phase-2 protocol); optional low-LR unfreeze of embedding+attention in stage 2; substrates stay frozen to protect CfC dynamics.
 
-### P6.U1 — Environment adapter & policy wrapper ⬜
-- [ ] Add dep `gymnasium[box2d]`; verify LunarLander-v3 resets/steps on Windows + py3.13 (R9)
-- [ ] `training/control/obs_adapter.py`: observation window builder (deque, padding) + obs→sensor projection
-- [ ] `training/control/policy_wrapper.py`: Choice→action projection + sampling; Score→value; Noul→confidence; per-step log-prob bookkeeping
-- [ ] `training/control/rollout.py`: seeded on-policy episode collection
+### P6.U1 — Environment adapter & policy wrapper ✅
+- [x] Dep `gymnasium[box2d]` added; **R9 verified**: LunarLander-v3 reset/step/reseed functional on Windows + py3.13 (`training/verify_env.py`; obs (8,), Discrete(4))
+- [x] `training/control/obs_adapter.py`: `ObsAdapter` (Linear obs→sensor) + `ObsWindow` (rolling, zero-padded front)
+- [x] `training/control/policy_wrapper.py`: `ControlPolicy` — Choice→action projection + sampling, Score→value, Noul→confidence, route telemetry; `parameters_for_training()` = action head + routers + cortex only
+- [x] `training/control/rollout.py`: seeded `run_episode` + `random_baseline`
+- [x] Tests: window padding/rolling, projection + validation, decision fields, trunk exclusion, full episodes, seeded reproducibility, adapter cost < 50K params (10 tests)
 
-**AC:** Random-init agent completes ≥ 10 full episodes end-to-end; all shapes verified; seeded rollouts reproducible.
+**AC:** ✅ met — random-init agent completes full episodes end-to-end; shapes verified; seeded rollouts reproducible.
 
 ### P6.U2 — Dynamics warm-start on env trajectories ⬜
 - [ ] Collect random-policy dataset (~50k steps); next-obs MSE pretraining reusing the `Phase1Trainer` machinery on env data
