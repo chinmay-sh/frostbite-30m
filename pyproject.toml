@@ -1,7 +1,41 @@
 [project]
 name = "frostbite-30m"
 version = "0.1.0"
-description = "Add your description here"
+description = "29.8M-parameter hybrid edge model: self-attention + CfC liquid dynamics + internal RL routing (Route/Skip/Halt)."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "torch>=2.6",
+    "ncps>=1.0.1",
+    "numpy>=2.1",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+frostbite = "frostbite.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["frostbite"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+# CUDA wheels for torch come from the PyTorch index, not PyPI (Windows).
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }

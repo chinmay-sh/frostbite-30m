@@ -1,0 +1,31 @@
+# Frostbite-30M architecture hyperparameters (PLAN.md §2.1)
+# All values in one place; code reads config, never hard-codes numbers.
+
+model:
+  d_model: 256          # fixed across all layers
+  n_blocks: 6           # Reinforced Liquid Blocks
+  n_heads: 4            # per-block multi-head attention
+  dropout: 0.1
+  param_cap: 30_000_000  # hard limit enforced by tests/test_param_count.py
+
+embedding:
+  sensor_dim: 128       # raw input features per timestep
+  max_len: 1024         # max sequence length (positional encoding table size)
+
+attention:
+  causal: true          # causal mask for time-series
+
+cfc:
+  units: 256            # CfC hidden units (d_model in, d_model out)
+  mode: "default"       # ncps CfC mode: default | pure | no_gate
+  backbone_units: 128   # CfC backbone MLP width
+  backbone_layers: 1
+  mixed_memory: false   # enable LSTM-augmented CfC if long-term memory needed
+
+router:
+  hidden_dim: 128       # 2-layer MLP hidden width (Auto-RL cell)
+  # Actions: 0=ROUTE, 1=SKIP, 2=HALT
+
+cortex:
+  choice_dim: 8         # global routing choices (Choice head)
+  hidden_dim: 256

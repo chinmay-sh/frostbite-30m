@@ -10,6 +10,17 @@
 | 2026-09-26 | D3 | Decisions live in this file, not PROGRESS.md | Keep execution status and long-lived decisions separate |
 | 2026-09-26 | D4 | Keep code simple & easy to understand; prefer an OOP architecture | Small maintainable codebase; each concept = one clear class |
 | 2026-09-26 | D5 | Add `AGENTS.md` at repo root | Single entry point for agent/collaborator conventions |
+| 2026-09-26 | D6 | Pin `ncps==1.0.1`, wrap it — never call `ncps.torch.CfC` directly outside `CfCSubstrate` | Library is thinly maintained (last release Aug 2024); wrapper isolates us from upstream quirks and keeps P1.U3 swappable |
+| 2026-09-26 | D7 | **Known ncps CfC issues confirmed** (see below) | Verified empirically on RTX 3060 + source inspection (torch 2.11.0+cu128, ncps 1.0.1) |
+| 2026-09-26 | D8 | torch from PyTorch cu128 index; bf16 AMP | RTX 3060 (Ampere) supports bf16; verified `is_bf16_supported()=True` |
+| 2026-09-26 | D9 | `pyyaml` over `omegaconf` for configs | Fewer deps; typed frozen dataclasses + fail-fast loader is enough |
+
+### D7 detail — confirmed `ncps` CfC issues (2026-09-26)
+
+1. **Time-gate sign inconsistency across backends.** `ncps/torch/cfc_cell.py` computes `t_interp = sigmoid(t_a*ts + t_b)` while `ncps/tf/cfc_cell.py` computes `sigmoid(-t_a*t + t_b)`. Verified empirically: the two conventions produce different outputs (not a no-op). Any reference implementation ported from the paper's TF code will diverge from the PyTorch path. → Our wrapper fixes ONE convention and documents it.
+2. **Pure-Python time loop.** `CfC.forward` iterates `for t in range(seq_len)` per step — no fused/cuDNN RNN path. Thousands of tiny kernel launches per forward at batch 128 × seq 256 × 6 blocks. → Expect throughput, not correctness, problems in Phase-1; benchmark early (P3.U5).
+3. **Silent shape handling.** Unbatched 2-D input is silently squeezed/expanded; hidden-state batch dim inferred from input. → `CfCSubstrate` must validate shapes explicitly (P1.U3).
+4. **What's fine:** hidden-state carryover across chunked calls is exact (`full_pass ≈ cat(chunk_a, chunk_b)`, atol 1e-6) — BPTT chunking is safe. Gradients flow to cell weights on CUDA. Sign issue aside, forward/backward is numerically healthy.
 
 ## Template for new entries
 

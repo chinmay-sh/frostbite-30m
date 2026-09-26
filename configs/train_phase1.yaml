@@ -1,0 +1,32 @@
+# Phase-1 supervised pre-training (PLAN.md §3, Phase 1)
+# Gumbel-Softmax relaxation through the Auto-RL router.
+
+run_name: phase1_smoke
+seed: 42
+
+data:
+  seq_len: 256
+  batch_size: 128
+  num_workers: 4
+
+optim:
+  optimizer: adamw
+  lr: 3.0e-4
+  weight_decay: 0.01
+  grad_clip: 1.0
+  warmup_steps: 500
+  schedule: cosine
+
+gumbel:
+  tau_start: 2.0        # soft mixture at the beginning
+  tau_end: 0.5          # near-discrete by the end of annealing
+  anneal_epochs: 10
+
+amp:
+  enabled: true
+  dtype: bfloat16       # RTX 3060 supports bf16 (Ampere+)
+
+checkpoint:
+  dir: runs/phase1
+  save_every_steps: 1000
+  resume: null

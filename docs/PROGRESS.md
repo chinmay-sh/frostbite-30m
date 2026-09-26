@@ -18,11 +18,11 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). Reference these IDs in commits: `feat(P2.U3): masked halt control flow`.
 
-**Global state:** Phase 0 · Last updated: 2026-09-26
+**Global state:** Phase 0 complete · Last updated: 2026-09-26
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |
-| P0 | Environment & Scaffolding | 4 | ⬜ | — |
+| P0 | Environment & Scaffolding | 4 | ✅ | — |
 | P1 | Core Substrates (Attention, CfC, Embedding) | 4 | ⬜ | P0 |
 | P2 | Auto-RL Cell & Dynamic Routing | 4 | ⬜ | P1 |
 | P3 | Full Assembly & Phase-1 Training | 5 | ⬜ | P2 |
@@ -34,34 +34,34 @@
 ## PHASE 0 — Environment & Scaffolding
 *Goal: a reproducible dev environment and skeleton every later phase plugs into. No model code yet.*
 
-### P0.U1 — Dependency & toolchain setup ⬜
-- [ ] Add deps via `uv`: `torch` (CUDA 12.x wheel), `ncps`, `numpy`, `pyyaml` (or `omegaconf`), `pytest`, `onnx`, `onnxruntime` (dev-only)
-- [ ] Verify `python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"` → `True / RTX 3060`
-- [ ] Verify `ncps` imports and its CfC runs a forward pass on CUDA
-- [ ] Record exact versions in `pyproject.toml` (uv lock)
+### P0.U1 — Dependency & toolchain setup ✅
+- [x] Deps added via `uv`: `torch==2.11.0+cu128` (PyTorch cu128 index), `ncps==1.0.1`, `numpy`, `pyyaml`, dev: `pytest` (`onnx`/`onnxruntime` deferred to P5 — no need earlier)
+- [x] `cuda.is_available()=True`, GPU = RTX 3060, `bf16 supported = True`
+- [x] `ncps` CfC forward+backward on CUDA verified; gradients reach cell weights
+- [x] **ncps CfC audit done — issues confirmed, logged as D7** (sign inconsistency, python time-loop, silent shapes; carryover exact — see `docs/DECISIONS.md`)
 
-**AC:** CUDA-visible torch + working `ncps` CfC forward pass on GPU. ⚠️ *Risk check: Python 3.13 wheel availability for `ncps`/torch — if missing, pin Python 3.12 in `.python-version` (see Risk R1).*
+**AC:** ✅ met. R1 (Python 3.13 wheels) did not materialize — torch 2.11 and ncps 1.0.1 both installed cleanly on 3.13.
 
-### P0.U2 — Configuration system ⬜
-- [ ] `configs/arch_30m.yaml`: `d_model=256`, `n_heads=4`, `n_blocks=6`, per-module param budgets, CfC dims, router hidden dims
-- [ ] `configs/train_phase1.yaml`: batch=128, AMP on, LR schedule, BPTT window
-- [ ] `frostbite/config.py`: frozen dataclasses + YAML loader with validation (fail-fast on unknown keys / budget overflow)
+### P0.U2 — Configuration system ✅
+- [x] `configs/arch_30m.yaml`: d_model=256, n_heads=4, n_blocks=6, param_cap, CfC/router/cortex dims
+- [x] `configs/train_phase1.yaml`: batch=128, bf16 AMP, LR schedule, Gumbel anneal
+- [x] `frostbite/config/`: frozen dataclasses (`ArchConfig`, `TrainConfig`) + fail-fast YAML loader
 
-**AC:** Loading a config returns typed objects; invalid YAML raises a clear error.
+**AC:** ✅ met — covered by `tests/test_config.py` (loads real configs; rejects unknown fields & missing keys).
 
-### P0.U3 — Package skeleton ⬜
-- [ ] Create tree per PLAN §5: `frostbite/{modules,blocks,heads}`, `training/`, `deployment/`, `tests/`, `configs/`
-- [ ] Stub modules with docstrings + `NotImplementedError` placeholders so imports resolve
-- [ ] `frostbite/__init__.py` exports; delete/repurpose `main.py` as CLI entry (`python -m frostbite` later)
+### P0.U3 — Package skeleton ✅
+- [x] Tree per PLAN §5: `frostbite/{modules,blocks,heads,config}`, `training/`, `deployment/`, `tests/`, `configs/`
+- [x] All stubs with docstrings + `NotImplementedError`, each class in its named file
+- [x] `python -m frostbite` / `uv run frostbite info` CLI wired; placeholder `main.py` deleted
 
-**AC:** `pytest` collects 0 tests without import errors; `import frostbite` works in the venv.
+**AC:** ✅ met — `uv run pytest` collects & passes with zero import errors.
 
-### P0.U4 — Reproducibility & test harness ⬜
-- [ ] `frostbite/utils.py`: seed-everything, device resolver, param-count helper (`count_params(module)`)
-- [ ] `tests/conftest.py`: deterministic seeds, CPU-fallback device fixture
-- [ ] `pyproject.toml` pytest config; agreed commit/branch convention documented in README
+### P0.U4 — Reproducibility & test harness ✅
+- [x] `frostbite/utils.py`: `seed_everything`, `resolve_device`, `count_params` (trainable-only)
+- [x] `tests/conftest.py`: autouse deterministic seeding + CPU-fallback device fixture
+- [x] pytest config in `pyproject.toml` (`testpaths`, `pythonpath`)
 
-**AC:** Two consecutive runs of a seeded dummy tensor op produce identical outputs; param counter matches `sum(p.numel())` on a toy module.
+**AC:** ✅ met — `tests/test_utils.py`: seeding reproducibility, param counting incl. frozen-param exclusion. **7/7 tests green.**
 
 ---
 
@@ -230,7 +230,7 @@ All decisions now live in **`docs/DECISIONS.md`** (see D3). This section is kept
 
 | ID | Risk | Likelihood | Mitigation |
 | --- | --- | --- | --- |
-| R1 | `ncps` / torch CUDA wheels unavailable for Python 3.13 | Medium | Pin Python 3.12 in `.python-version`; or vendor a minimal CfC cell implementation (still counts toward P1.U3) |
+| R1 | `ncps` / torch CUDA wheels unavailable for Python 3.13 | ~~Medium~~ Resolved | Did not occur — torch 2.11.0+cu128 & ncps 1.0.1 installed cleanly on 3.13 (P0.U1) |
 | R2 | Masked 3-branch training inflates VRAM (all branches materialized) | Medium | Activation checkpointing on CfC branch; reduce BPTT window; PLAN headroom is 8 GB |
 | R3 | Gumbel→categorical distribution shift breaks Phase-2 transfer | Medium | Slow tau anneal; P4.U3 A/B test catches this early |
 | R4 | HALT early-exit not ONNX-exportable as a single graph | High | Split export (trunk + cortex); pre-decided in P5.U1 |
