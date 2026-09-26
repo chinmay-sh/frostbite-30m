@@ -113,12 +113,12 @@
 
 **AC:** ✅ met — finite-gradient assertion on logits through the masked path; ST behavior mathematically verified.
 
-### P2.U3 — Masked control flow (train) & branchy execution (eval) ⬜
-- [ ] Training path: compute all three branches, mix via one-hot masks (no `if/else` — graph-safe)
-- [ ] Inference path: true conditional execution (`torch.jit`/early-exit friendly) — HALT exits the block stack
-- [ ] HALT semantics: aggregate per-token halting into a layer-stack exit signal; pass representation to Cortex
+### P2.U3 — Masked control flow (train) & branchy execution (eval) ✅
+- [x] `frostbite/modules/branch_executor.py`: graph-safe one-hot mixing (`mask*route + (1-mask)*z`); eval-time true conditional skip when nobody routes; train mode always computes all branches
+- [x] `frostbite/modules/routing_state.py`: per-token HALT bookkeeping — `fresh/update/resolve/all_halted`, frozen reps survive subsequent blocks
+- [x] Tests: all-ROUTE == substrate, all-SKIP identity, eval substrate-untouched (spy), train substrate-always-run, **train/eval parity with argmax actions**, token freeze across blocks, all-halted short-circuit (7 tests)
 
-**AC:** Train mode and eval mode produce identical outputs when router is forced argmax-deterministic. **PLAN Milestone 2 precondition.**
+**AC:** ✅ met — train and eval modes produce identical outputs under argmax-deterministic routing. PLAN Milestone 2 precondition in place.
 
 ### P2.U4 — Gradient-flow verification ⬜
 - [ ] `tests/test_gradients.py`: gradients reach (a) attention, (b) CfC substrate, (c) router logits, (d) embedding — through the masked mixture
