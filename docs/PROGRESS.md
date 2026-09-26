@@ -75,11 +75,11 @@
 
 **AC:** ✅ met — shape + grad tests pass (`tests/test_embedding.py`). Param note: at d_model=256/sensor 128/max_len 1024 the embedding is ≈0.3M, not PLAN's 8.2M (that figure implies a ~32K token table); deviation to be logged with the P1.U4 budget table.
 
-### P1.U2 — Multi-Head Self-Attention ⬜
-- [ ] `frostbite/modules/attention.py`: 4 heads, d=256, pre-norm + residual, optional causal mask
-- [ ] Unit tests: shape correctness; causal mask enforced (future positions leak-checked); params/head counted
+### P1.U2 — Multi-Head Self-Attention ✅
+- [x] `frostbite/modules/attention.py`: 4 heads, d=256, pre-norm + residual, causal mask via `scaled_dot_product_attention(is_causal=True)` (flash-attention path on Ampere)
+- [x] Unit tests: shape; residual identity check; causal leak-check (perturbing future leaves past outputs unchanged); divibility guard; full gradient flow; exact param formula (6 tests)
 
-**AC:** Attention block params ≈ 1.6M/6 ≈ 265K per block. Gradient check passes.
+**AC:** ✅ met — at d=256: 263K params/block × 6 = **1.58M** vs PLAN's 1.6M ✓. Gradients verified for every parameter.
 
 ### P1.U3 — CfC Continuous Substrate ⬜
 - [ ] `frostbite/modules/cfc_substrate.py`: wrap `ncps torch CfC` as an FFN-replacement module (input proj → CfC cell → output proj)
