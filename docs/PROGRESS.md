@@ -100,11 +100,12 @@
 ## PHASE 2 — Auto-RL Cell & Dynamic Routing (Sprint 2, part 1)
 *Goal: the MicroRouter and differentiable Route/Skip/Halt control flow.*
 
-### P2.U1 — MicroRouter (Auto-RL cell) ⬜
-- [ ] `frostbite/modules/auto_rl_cell.py`: 2-layer MLP → 3 logits (`ROUTE`/`SKIP`/`HALT`), ~0.5M total across 6 blocks
-- [ ] Returns logits (not sampled) — sampling strategy injected by caller
+### P2.U1 — MicroRouter (Auto-RL cell) ✅
+- [x] `frostbite/modules/auto_rl_cell.py`: `AutoRLCell` (2-layer MLP → 3 logits) + `RoutingAction` enum (`ROUTE=0/SKIP=1/HALT=2`)
+- [x] Returns raw logits only — sampling strategy injected by caller (train vs eval paths stay separate)
+- [x] Unit tests: logit shape `(B, T, 3)`, determinism, gradient flow, exact param formula, **prod router stack ≤ 0.5M** (6 tests)
 
-**AC:** Logit shape `(B, T, 3)`; per-block params within budget; no sampling logic inside the module.
+**AC:** ✅ met — logit shape `(B, T, 3)`; per-block params within budget; no sampling inside the module.
 
 ### P2.U2 — Gumbel-Softmax straight-through estimator ⬜
 - [ ] Differentiable `gumbel_sample(logits, tau, hard=True)` utility; temperature `tau` schedulable via config
