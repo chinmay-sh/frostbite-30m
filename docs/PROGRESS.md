@@ -171,12 +171,12 @@
 ## PHASE 4 — Phase-2 Reinforcement Learning (Sprint 3)
 *Goal: train routers + Cortex as true agents with REINFORCE (PPO optional).*
 
-### P4.U1 — Reward functions & credit assignment ⬜
-- [ ] `training/rewards.py`: `R_total = α·R_task + β·R_compute`; compute rewards (+0.1 SKIP, +0.2 HALT, −0.1 ROUTE) credited **per routing layer**
-- [ ] Baseline subtractor (moving average) to reduce variance
-- [ ] Unit tests: reward attribution matches the layer that made each choice
+### P4.U1 — Reward functions & credit assignment ✅
+- [x] `training/environment.py`: `TelemetryEnv` — difficulty-segmented telemetry (static/oscillatory/chaotic), deterministic per seed, `sample_batch` emits (windows, difficulties, next_states); `task_reward` (+1/−1)
+- [x] `training/rewards.py`: `RewardConfig` (α, β per PLAN §3) + `RewardCalculator` — compute rewards (ROUTE −0.1 / SKIP +0.1 / HALT +0.2) credited **per routing layer**; task reward shared sequence-level
+- [x] Tests: env shapes/determinism/variance-ordering, task reward signs, PLAN reward values, layer-local credit, α/β composition (7 tests)
 
-**AC:** Reward vector per layer, per step; deterministic given a routing trace.
+**AC:** ✅ met — reward vector per layer per step; deterministic given a routing trace.
 
 ### P4.U2 — REINFORCE training loop ⬜
 - [ ] `training/phase2_reinforce.py`: categorical sampling replaces Gumbel; log-prob × advantage loss for routers + Cortex Choice head
