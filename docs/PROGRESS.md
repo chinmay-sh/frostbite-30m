@@ -18,7 +18,7 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
-**Global state:** Phase 4 complete (P4.U4 deferred, D17) · Last updated: 2026-09-26
+**Global state:** Phase 4 complete · P5 deferred (D18) · P6 planned · Last updated: 2026-09-26
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |
@@ -27,7 +27,8 @@
 | P2 | Auto-RL Cell & Dynamic Routing | 4 | ✅ | P1 |
 | P3 | Full Assembly & Phase-1 Training | 5 | ✅ | P2 |
 | P4 | Phase-2 Reinforcement Learning | 4 | ✅ | P3 |
-| P5 | Edge Deployment (ONNX + Go) | 3 | ⬜ | P4 |
+| P5 | Edge Deployment (ONNX + Go) | 3 | ⏸ deferred (D18) | P4 |
+| P6 | Real-World Control Fine-Tuning (extension) | 5 | ⬜ planned | P4 |
 
 ---
 
@@ -202,6 +203,8 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
 ## PHASE 5 — Edge Deployment (Sprint 4)
 *Goal: ONNX export + Go inference wrapper + latency evidence.*
 
+> **Status: ⏸ deferred (D18)** — held in favor of Phase 6; units below unchanged, resume after P6.
+
 ### P5.U1 — ONNX export ⬜
 - [ ] `deployment/export_onnx.py`: export with fixed/effective dynamic axes; handle HALT early-exit (two-graph split: trunk + cortex, if single-graph export fails)
 - [ ] Parity test: PyTorch vs. ONNX output max-abs-diff < 1e-4 (FP32) / < 1e-2 (FP16)
@@ -219,6 +222,52 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
 - [ ] Memory footprint (RSS) documented; compare vs. PyTorch runtime
 
 **AC:** Latency table in README; meets edge telemetry targets set in PLAN §1.
+
+---
+
+## PHASE 6 — Real-World Control Fine-Tuning (Extension, added by D18)
+*Goal: fine-tune Frostbite as an actual control agent on a Gymnasium environment — the real-world-type scenario test. Primary env: **LunarLander-v3** (rocket/drone landing: 8-dim telemetry, 4 discrete actions, light `box2d` dep). Alternates considered: CarRacing (pixel obs — needs a conv encoder, big change), MuJoCo HalfCheetah (CfC-literature standard, heavier dep). Env choice reconfirmable at kickoff.*
+
+**Design — the cortex heads already form an actor-critic agent (no model surgery):**
+- **Choice head → action policy**: project `choice_dim` logits → `n_actions`, categorical sampling.
+- **Score head → value baseline (critic)**: scalar V(s) upgrades REINFORCE to actor-critic — and is the natural landing spot for PPO (D17) if variance demands it.
+- **Noul head → decision confidence**: logged per flight phase; stretch — conservative-action gating when confidence is low.
+- **ObsAdapter**: `Linear(obs_dim → sensor_dim=128)` keeps the Phase-1 trunk checkpoint-compatible; rolling window of the last T=32 observations (early-step padding).
+- **Compute reward**: reuse `RewardCalculator` with the env step reward as `R_task`; β annealed 0.2 → 0.02 (R8).
+- **Trunk schedule**: frozen first (Phase-2 protocol); optional low-LR unfreeze of embedding+attention in stage 2; substrates stay frozen to protect CfC dynamics.
+
+### P6.U1 — Environment adapter & policy wrapper ⬜
+- [ ] Add dep `gymnasium[box2d]`; verify LunarLander-v3 resets/steps on Windows + py3.13 (R9)
+- [ ] `training/control/obs_adapter.py`: observation window builder (deque, padding) + obs→sensor projection
+- [ ] `training/control/policy_wrapper.py`: Choice→action projection + sampling; Score→value; Noul→confidence; per-step log-prob bookkeeping
+- [ ] `training/control/rollout.py`: seeded on-policy episode collection
+
+**AC:** Random-init agent completes ≥ 10 full episodes end-to-end; all shapes verified; seeded rollouts reproducible.
+
+### P6.U2 — Dynamics warm-start on env trajectories ⬜
+- [ ] Collect random-policy dataset (~50k steps); next-obs MSE pretraining reusing the `Phase1Trainer` machinery on env data
+- [ ] Re-run the 30M cap check with adapter params included
+
+**AC:** Next-obs loss decreases ≥ 50% from init; warm-start checkpoint saved; model still ≤ 30M cap.
+
+### P6.U3 — Control fine-tuning loop (actor-critic REINFORCE) ⬜
+- [ ] `training/control/train_control.py`: episodes → advantage (R − V(s) via Score head) → policy gradient; entropy guard; β-annealed compute reward; trunk-freeze schedule
+- [ ] Per-flight-phase routing telemetry (ascent / hover / descent / landed ↔ P(ROUTE), halt depth)
+
+**AC:** Mean episodic return improves ≥ 3× from the random baseline; no entropy collapse; checkpoint saved.
+
+### P6.U4 — Evaluation & evidence ⬜
+- [ ] Return curves: learned router vs SKIP-only ablation vs ROUTE-all ablation (same trunk)
+- [ ] Per-phase routing table + decisions/sec — the adaptive-compute payoff (HALT when stable, ROUTE during descent?)
+- [ ] README results section
+
+**AC:** Demonstrated landing capability (target: avg return ≥ 150 over 50 eval episodes; stretch: gym "solved" ≥ 200) AND routing behavior differs meaningfully across flight phases.
+
+### P6.U5 — (Stretch) POMDP / second environment ⬜
+- [ ] Masked-observation LunarLander (POMDP) — where CfC memory should shine
+- [ ] Or MuJoCo HalfCheetah for transfer evidence
+
+**AC:** Documented comparison vs the fully-observed baseline.
 
 ---
 
@@ -241,6 +290,10 @@ All decisions now live in **`docs/DECISIONS.md`** (see D3). This section is kept
 | R3 | Gumbel→categorical distribution shift breaks Phase-2 transfer | Medium | Slow tau anneal; P4.U3 A/B test catches this early |
 | R4 | HALT early-exit not ONNX-exportable as a single graph | High | Split export (trunk + cortex); pre-decided in P5.U1 |
 | R5 | Router collapse (always SKIP — reward hacking `R_compute`) | Medium | Entropy bonus, β annealing, task-reward gating in P4.U2 |
+| R6 | Frozen trunk mismatched to control dynamics → weak policy | Medium | P6.U2 warm-start adapts representations first; stage-2 low-LR unfreeze (P6.U3) |
+| R7 | Batch-1 window inference too slow for RL sampling loops | Medium | T=32 window on GPU; vectorized envs (`SyncVectorEnv`) as stretch; CfC hidden-carry step API as alternative |
+| R8 | Compute reward hijacks the control policy into SKIP/HALT always | Medium | β anneal 0.2 → 0.02; entropy guard; per-phase routing telemetry makes hacking visible |
+| R9 | `gymnasium[box2d]` wheels on Windows / Python 3.13 | Low | Verify first thing in P6.U1; fallbacks: CartPole-class env, MuJoCo, or the TelemetryEnv |
 
 ## Definition of Done (project-level)
 
@@ -248,3 +301,5 @@ All decisions now live in **`docs/DECISIONS.md`** (see D3). This section is kept
 2. `tests/` green: param cap, gradient flow, ONNX parity.
 3. Phase-2 routing-behavior evidence (P4.U3) and latency table (P5.U3) documented in README.
 4. Re-producible from scratch: `uv sync && uv run pytest && uv run training/phase1_supervised.py --smoke`.
+5. (Extension, P6) Control evidence: return curve vs ablations + per-flight-phase routing table in README.
+6. (Deferred, P5) Latency/footprint table in README once edge deployment resumes.

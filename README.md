@@ -9,6 +9,17 @@ Hybrid 29.8M-parameter edge model: Self-Attention + CfC liquid dynamics + intern
 - `docs/DECISIONS.md` — append-only log of every project decision (the *why*)
 - `AGENTS.md` — working conventions for agents & contributors (read before writing code)
 
+## Status
+
+| Phase | Focus | State |
+| --- | --- | --- |
+| P0–P3 | Scaffolding → substrates → routing → full model + Phase-1 training | ✅ (Milestones 1 & 2) |
+| P4 | REINFORCE routing on TelemetryEnv | ✅ **Milestone 3** — compute allocation tracks dynamics difficulty |
+| P5 | Edge deployment (ONNX + Go) | ⏸ deferred (D18) |
+| P6 | Real-world control fine-tuning (Gymnasium LunarLander-v3) | ⬜ planned — see `docs/PROGRESS.md` §Phase 6 |
+
+Current model: **29.4M params** (d_model=320, 6 blocks, 4 heads, CfC backbone 2242), trains in <5 GiB VRAM.
+
 Always update `docs/PROGRESS.md` at the end of a work session, and log every decision in `docs/DECISIONS.md` (see `AGENTS.md` for the rules).
 
 ## Project layout
