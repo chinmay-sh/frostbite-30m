@@ -14,7 +14,7 @@ CONFIGS = Path(__file__).parent.parent / "configs"
 class TestArchConfig:
     def test_loads_arch_30m(self):
         config = ArchConfig.from_yaml(CONFIGS / "arch_30m.yaml")
-        assert config.d_model == 256
+        assert config.d_model == 320
         assert config.n_blocks == 6
         assert config.n_heads == 4
         assert config.param_cap == 30_000_000

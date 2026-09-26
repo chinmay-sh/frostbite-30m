@@ -147,8 +147,8 @@
 
 ### P3.U3 — FrostbiteModel full assembly ✅
 - [x] `frostbite/model.py`: Embedding → 6 blocks → cortex; per-token HALT freeze via `RoutingState`, eval-time stack short-circuit when all tokens halted; returns `ModelOutput(cortex, halt_layer, route_probs)`
-- [x] **Full production model: 29,474,504 params ≤ 30M cap** (test-enforced; rescaled from 14.85M via D13 — CfC backbone 2930)
-- [x] Latency baseline recorded: ~462 ms BS=1 seq=256 on CPU at the 29.47M scale (edge comparison in P5)
+- [x] **Full production model: 29,397,736 params ≤ 30M cap** (test-enforced; variant B per D14: d_model=320, backbone 2242)
+- [x] Latency baseline recorded: ~398 ms BS=1 seq=256 on CPU / 314 ms on GPU at the 29.4M scale (edge comparison in P5)
 - [x] Tests: shapes, eval determinism, forced-HALT short-circuit (stack exits after block 0), end-to-end grads, cap, latency (6 tests)
 
 **AC:** ✅ met — full model within cap; halt short-circuit verified. 29.47M ≈ PLAN's 29.8M design point with 0.53M safety margin under the cap.
