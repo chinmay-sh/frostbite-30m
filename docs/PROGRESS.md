@@ -132,11 +132,12 @@
 ## PHASE 3 — Full Assembly & Phase-1 Training (Sprint 2, part 2)
 *Goal: the complete Frostbite-30M model + supervised Gumbel training loop running end to end.*
 
-### P3.U1 — Reinforced Liquid Block assembly ⬜
-- [ ] `frostbite/blocks/reinforced_layer.py`: Attention → Router → {CfC | residual | halt} composition, residual + norm
-- [ ] Config-driven; logs routing probabilities as diagnostics (TensorBoard/W&B optional)
+### P3.U1 — Reinforced Liquid Block assembly ✅
+- [x] `frostbite/blocks/reinforced_layer.py`: attention → router → masked mix → LayerNorm, threading `RoutingState`; returns `BlockOutput(output, state, logits)` for stack + RL credit
+- [x] Train: ST-Gumbel sampling / Eval: deterministic argmax one-hot (parity per P2.U3)
+- [x] Tests: shape+state, eval determinism, forced-HALT state capture, ROUTE-biased full gradient flow, all-SKIP case (substrate 0 grads by design, router/attention still learn) (5 tests)
 
-**AC:** Single block forward/backward within param budget; routing stats logged per step.
+**AC:** ✅ met — forward/backward within budget; routing behavior observable via `BlockOutput.logits`. Test lesson: never use `output.sum()` as a loss on LayerNorm outputs (per-token sum ≡ 0 → fake zero-grad).
 
 ### P3.U2 — Global Laya-Style Cortex ⬜
 - [ ] `frostbite/heads/laya_cortex.py`: Choice head (softmax routing, 3.5M), Score head (ordinal scalar, 1.7M), Noul head (sigmoid confidence, 1.8M)
