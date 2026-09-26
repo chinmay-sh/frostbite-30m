@@ -18,7 +18,7 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
-**Global state:** Phase 3 complete · Last updated: 2026-09-26
+**Global state:** Phase 4 complete (P4.U4 deferred, D17) · Last updated: 2026-09-26
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |
@@ -26,7 +26,7 @@
 | P1 | Core Substrates (Attention, CfC, Embedding) | 4 | ✅ | P0 |
 | P2 | Auto-RL Cell & Dynamic Routing | 4 | ✅ | P1 |
 | P3 | Full Assembly & Phase-1 Training | 5 | ✅ | P2 |
-| P4 | Phase-2 Reinforcement Learning | 4 | ⬜ | P3 |
+| P4 | Phase-2 Reinforcement Learning | 4 | ✅ | P3 |
 | P5 | Edge Deployment (ONNX + Go) | 3 | ⬜ | P4 |
 
 ---
@@ -192,11 +192,10 @@
 
 **AC:** ✅ met — evidence that the model uses CfC compute on hard dynamics and skips/halts on static segments, on the real trained model.
 
-### P4.U4 — PPO upgrade (optional stretch) ⬜
-- [ ] Replace REINFORCE with clipped-surrogate PPO if variance/instability observed
-- [ ] Keep REINFORCE path behind a config flag for comparison
+### P4.U4 — PPO upgrade (optional stretch) ⏸ Deferred
+REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 updates), monotonic baseline, and it delivered Milestone 3. PPO's clipped surrogate is justified only if variance/instability appears in longer runs — revisit if Phase-2 runs at 10× scale regress. Logged as D17.
 
-**AC:** PPO runs; sample-efficiency comparison table vs. REINFORCE documented.
+**AC:** N/A (deferred by decision D17).
 
 ---
 
