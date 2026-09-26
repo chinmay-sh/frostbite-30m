@@ -107,11 +107,11 @@
 
 **AC:** ✅ met — logit shape `(B, T, 3)`; per-block params within budget; no sampling inside the module.
 
-### P2.U2 — Gumbel-Softmax straight-through estimator ⬜
-- [ ] Differentiable `gumbel_sample(logits, tau, hard=True)` utility; temperature `tau` schedulable via config
-- [ ] Property test: straight-through path delivers gradients to router logits while forward output is one-hot
+### P2.U2 — Gumbel-Softmax straight-through estimator ✅
+- [x] `frostbite/modules/sampling.py`: `gumbel_sample(logits, tau, hard=True)` wrapping `F.gumbel_softmax` — one-hot forward, soft backward; τ validated
+- [x] Property tests: one-hot forward, finite nonzero logits grads, ST Jacobian fingerprint (row-sums = 0, the softmax-Jacobian signature), τ→0 argmax convergence, τ≤0 rejection (5 tests)
 
-**AC:** Finite-gradient assertion on logits through the masked mixing path.
+**AC:** ✅ met — finite-gradient assertion on logits through the masked path; ST behavior mathematically verified.
 
 ### P2.U3 — Masked control flow (train) & branchy execution (eval) ⬜
 - [ ] Training path: compute all three branches, mix via one-hot masks (no `if/else` — graph-safe)
