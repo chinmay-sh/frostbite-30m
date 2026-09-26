@@ -7,11 +7,17 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
+from collections.abc import Callable
+
 from frostbite.model import FrostbiteModel
 from frostbite.modules.auto_rl_cell import RoutingAction
 from frostbite.modules.routing_state import RoutingState
 from training.environment import TelemetryEnv
 from training.rewards import RewardCalculator, RewardConfig
+
+# Optional seam: (predicted, target_mean, difficulties, actions_per_layer) -> (B,).
+# Must depend on the ACTIONS, else the policy gradient vanishes in expectation.
+TaskRewardFn = Callable[..., Tensor]
 
 
 @dataclass
@@ -45,11 +51,13 @@ class Phase2Trainer:
         env: TelemetryEnv,
         reward_config: RewardConfig | None = None,
         config: RLConfig | None = None,
+        task_reward_fn: TaskRewardFn | None = None,
     ) -> None:
         self.model = model
         self.env = env
         self.rewards = RewardCalculator(reward_config or RewardConfig())
         self.config = config or RLConfig()
+        self.task_reward_fn = task_reward_fn  # None -> default Score-head reward
         self.baseline = 0.0
         self.optimizer = self._build_optimizer()
 
@@ -69,7 +77,12 @@ class Phase2Trainer:
 
     def _collect_rollout(self) -> Rollout:
         """One env batch through the model with categorical sampling."""
-        windows, _, next_states = self.env.sample_batch(self.config.batch_size)
+        windows, difficulties, next_states = self.env.sample_batch(
+            self.config.batch_size
+        )
+        device = next(self.model.parameters()).device
+        windows = windows.to(device)
+        next_states = next_states.to(device)
 
         hidden = self.model.embedding(windows)
         batch, seq_len, d_model = hidden.shape
@@ -97,11 +110,17 @@ class Phase2Trainer:
 
         hidden = state.resolve(hidden)
         predicted = self.model.cortex(hidden).score
+        target_mean = next_states.mean(dim=-1)
 
-        # Extrinsic task reward: +1 when the Score head lands near the true
-        # mean next-state, -1 otherwise (same tolerance as task_reward).
-        error = (predicted - next_states.mean(dim=-1)).abs()
-        task = torch.where(error < 0.5, 1.0, -1.0)
+        if self.task_reward_fn is not None:
+            task = self.task_reward_fn(
+                predicted, target_mean, difficulties, actions_per_layer
+            )
+        else:
+            # Default extrinsic reward: +1 when the Score head lands near the
+            # true mean next-state, -1 otherwise.
+            error = (predicted - target_mean).abs()
+            task = torch.where(error < 0.5, 1.0, -1.0)
 
         return Rollout(
             log_probs=log_probs,
