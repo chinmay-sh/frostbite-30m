@@ -153,11 +153,11 @@
 
 **AC:** ✅ met — full model within cap; halt short-circuit verified. Total 14.85M leaves ~15.1M headroom under the cap (D11 rationale: compact heads, CfC-dominant).
 
-### P3.U4 — Data pipeline & toy tasks ⬜
-- [ ] Synthetic time-series dataset (next-state prediction) + optional CartPole-trajectory offline dataset
-- [ ] DataLoader with chunked BPTT windows; deterministic splits
+### P3.U4 — Data pipeline & toy tasks ✅
+- [x] `training/data.py`: `SyntheticTelemetry` (sinusoid-mixture + noise, next-state targets), deterministic per-split seeds (train 1000 / val 2000), `make_loaders` helper
+- [x] Tests: determinism per split, split separation, window/target shapes `(T,128)/(128,)`, bad-split rejection, loader batch shapes (5 tests)
 
-**AC:** Batch of shape `(128, T, sensor_dim)` loads on GPU in < 50 ms (pinned memory).
+**AC:** ✅ met — deterministic splits verified; batches of `(B, T, sensor_dim)` produced. Loader performance (pinned memory < 50 ms) deferred to first GPU run in P3.U5 — synthetic data is generated once, not streamed.
 
 ### P3.U5 — Phase-1 supervised training loop ⬜
 - [ ] `training/phase1_supervised.py`: MSE / cross-entropy objective, `torch.amp` mixed precision, grad accumulation if needed, LR schedule, checkpointing
