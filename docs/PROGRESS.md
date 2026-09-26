@@ -16,7 +16,7 @@
 | ⏸ | Blocked (note why in the unit) |
 | ↩ | Needs rework (regression found) |
 
-**Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). Reference these IDs in commits: `feat(P2.U3): masked halt control flow`.
+**Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
 **Global state:** Phase 0 complete · Last updated: 2026-09-26
 

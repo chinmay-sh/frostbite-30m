@@ -14,6 +14,7 @@
 | 2026-09-26 | D7 | **Known ncps CfC issues confirmed** (see below) | Verified empirically on RTX 3060 + source inspection (torch 2.11.0+cu128, ncps 1.0.1) |
 | 2026-09-26 | D8 | torch from PyTorch cu128 index; bf16 AMP | RTX 3060 (Ampere) supports bf16; verified `is_bf16_supported()=True` |
 | 2026-09-26 | D9 | `pyyaml` over `omegaconf` for configs | Fewer deps; typed frozen dataclasses + fail-fast loader is enough |
+| 2026-09-26 | D10 | **One commit per unit** (`feat(P2.U3): ...`), status flip + code + decisions in the same commit; WIP sessions use `wip(P2.U3): ...` | Boring, reviewable history aligned with the tracker; formalized in `AGENTS.md` |
 
 ### D7 detail — confirmed `ncps` CfC issues (2026-09-26)
 

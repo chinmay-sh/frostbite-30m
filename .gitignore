@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# uv
+# (uv.lock IS committed — it pins the environment)
+
+# Training artifacts
+runs/
+checkpoints/
+*.pt
+*.onnx
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db

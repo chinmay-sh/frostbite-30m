@@ -40,9 +40,9 @@ uv run python -m frostbite   # CLI entry point
 ## Workflow rules
 
 - Work unit by unit, following `docs/PROGRESS.md`. A unit is done only when its acceptance criteria pass.
-- Reference the unit ID in commits: `feat(P2.U3): masked halt control flow`.
-- **At the end of every work session:** update `docs/PROGRESS.md` statuses (⬜/🟨/✅).
-- **Every meaningful decision** (library choice, API change, design trade-off) gets a row in `docs/DECISIONS.md` the same day.
+- **One commit per unit, no exceptions.** As soon as a unit's acceptance criteria pass, update `docs/PROGRESS.md` and commit in the same session. Reference the unit ID in commits: `feat(P2.U3): masked halt control flow` (`feat`/`fix`/`test`/`chore`/`docs`). If a unit needs multiple sessions, commit WIP with `wip(P2.U3): ...` and squash or follow up with the final `feat(P2.U3)` commit when done.
+- **At the end of every work session:** update `docs/PROGRESS.md` statuses (⬜/🟨/✅) — the status flip and the unit's code go into the same commit.
+- **Every meaningful decision** (library choice, API change, design trade-off) gets a row in `docs/DECISIONS.md` the same day, included in that unit's commit.
 - Never exceed the 30M parameter cap — `tests/test_param_count.py` enforces it; keep it green.
 
 ## Code conventions
