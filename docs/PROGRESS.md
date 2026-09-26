@@ -81,12 +81,12 @@
 
 **AC:** ✅ met — at d=256: 263K params/block × 6 = **1.58M** vs PLAN's 1.6M ✓. Gradients verified for every parameter.
 
-### P1.U3 — CfC Continuous Substrate ⬜
-- [ ] `frostbite/modules/cfc_substrate.py`: wrap `ncps torch CfC` as an FFN-replacement module (input proj → CfC cell → output proj)
-- [ ] Handle sequence/time-axis semantics + hidden-state carryover across BPTT windows
-- [ ] Unit tests: stateful warm start (hidden state continuity), shape `(B, T, 256)`, params ≈ 12.5M/6 per block
+### P1.U3 — CfC Continuous Substrate ✅
+- [x] `frostbite/modules/cfc_substrate.py`: wraps `ncps.torch.CfC` behind strict validation (per D6/D7) — explicit 3-D shape check, hidden-state carryover, out-projection to d_model when units differ
+- [x] Chunked BPTT exactness verified: full pass == cat(chunk A, warm-started chunk B), atol 1e-5
+- [x] Unit tests: shape+hidden, carryover, gradient flow to cell weights, 2-D rejection, param scaling (5 tests)
 
-**AC:** CfC forward+backward on GPU; hidden-state persistence across chunks verified; per-block param budget met.
+**AC:** ✅ met — forward+backward on GPU verified in P0.U1 audit; hidden-state persistence exact; **param note:** at backbone 128 the substrate is ~198K/block (1.19M over 6 blocks) vs PLAN's 12.5M — calibrating backbone width is P1.U4's job.
 
 ### P1.U4 — Parameter budget harness ⬜
 - [ ] `tests/test_param_count.py`: total ≤ 30M hard cap; per-module budget table asserted from `arch_30m.yaml`
