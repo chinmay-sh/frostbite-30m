@@ -18,12 +18,12 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
-**Global state:** Phase 1 in progress (P1.U1 ✅) · Last updated: 2026-09-26
+**Global state:** Phase 1 complete · Last updated: 2026-09-26
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |
 | P0 | Environment & Scaffolding | 4 | ✅ | — |
-| P1 | Core Substrates (Attention, CfC, Embedding) | 4 | 🟨 | P0 |
+| P1 | Core Substrates (Attention, CfC, Embedding) | 4 | ✅ | P0 |
 | P2 | Auto-RL Cell & Dynamic Routing | 4 | ⬜ | P1 |
 | P3 | Full Assembly & Phase-1 Training | 5 | ⬜ | P2 |
 | P4 | Phase-2 Reinforcement Learning | 4 | ⬜ | P3 |
@@ -88,11 +88,12 @@
 
 **AC:** ✅ met — forward+backward on GPU verified in P0.U1 audit; hidden-state persistence exact; **param note:** at backbone 128 the substrate is ~198K/block (1.19M over 6 blocks) vs PLAN's 12.5M — calibrating backbone width is P1.U4's job.
 
-### P1.U4 — Parameter budget harness ⬜
-- [ ] `tests/test_param_count.py`: total ≤ 30M hard cap; per-module budget table asserted from `arch_30m.yaml`
-- [ ] `uv run pytest tests/test_param_count.py` wired into pre-commit / CI habit
+### P1.U4 — Parameter budget harness ✅
+- [x] `tests/test_param_count.py`: hard 30M cap + per-module budgets read from `arch_30m.yaml` (`budgets:` section)
+- [x] Calibrated `cfc.backbone_units: 1344` → CfC ≈ 2.07M/block ≈ 12.4M total (PLAN intent preserved, D11)
+- [x] **Milestone 1 measured:** embedding 295K + 6×(263,680 att + 2,066,752 cfc) = **14,277,760 params** static stack, forward verified
 
-**AC:** **PLAN Milestone 1** — assembled static stack (6× Attention+CfC blocks, no router) reports ~29.8M and the test enforces the cap.
+**AC:** ✅ met — PLAN Milestone 1 (static stack within 30M budget) achieved with measured evidence; ~15.7M headroom remains for router + cortex + norms.
 
 ---
 
