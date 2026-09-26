@@ -18,13 +18,13 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
-**Global state:** Phase 1 complete · Last updated: 2026-09-26
+**Global state:** Phase 2 complete · Last updated: 2026-09-26
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |
 | P0 | Environment & Scaffolding | 4 | ✅ | — |
 | P1 | Core Substrates (Attention, CfC, Embedding) | 4 | ✅ | P0 |
-| P2 | Auto-RL Cell & Dynamic Routing | 4 | ⬜ | P1 |
+| P2 | Auto-RL Cell & Dynamic Routing | 4 | ✅ | P1 |
 | P3 | Full Assembly & Phase-1 Training | 5 | ⬜ | P2 |
 | P4 | Phase-2 Reinforcement Learning | 4 | ⬜ | P3 |
 | P5 | Edge Deployment (ONNX + Go) | 3 | ⬜ | P4 |
@@ -120,11 +120,12 @@
 
 **AC:** ✅ met — train and eval modes produce identical outputs under argmax-deterministic routing. PLAN Milestone 2 precondition in place.
 
-### P2.U4 — Gradient-flow verification ⬜
-- [ ] `tests/test_gradients.py`: gradients reach (a) attention, (b) CfC substrate, (c) router logits, (d) embedding — through the masked mixture
-- [ ] Regression test for the classic failure: SKIP-mask ≠ zeroing gradients on Z
+### P2.U4 — Gradient-flow verification ✅
+- [x] `tests/test_gradients.py`: full chain (embed → attend → route → ST Gumbel → masked mix → head) — grads reach embedding, attention, router, substrate, head
+- [x] Regression test: all-SKIP mask does NOT zero router gradients (the `z*0` failure mode)
+- [x] High-τ (5.0) still delivers router grads; deterministic double-precision `torch.autograd.gradcheck` on the masked mixing (4 tests)
 
-**AC:** All gradient tests green under `torch.autograd.gradcheck`-style finite-difference spot checks.
+**AC:** ✅ met — gradient tests green incl. finite-difference spot check via gradcheck; the SKIP-mask regression case is covered.
 
 ---
 
