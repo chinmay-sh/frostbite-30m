@@ -18,12 +18,12 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
-**Global state:** Phase 0 complete · Last updated: 2026-09-26
+**Global state:** Phase 1 in progress (P1.U1 ✅) · Last updated: 2026-09-26
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |
 | P0 | Environment & Scaffolding | 4 | ✅ | — |
-| P1 | Core Substrates (Attention, CfC, Embedding) | 4 | ⬜ | P0 |
+| P1 | Core Substrates (Attention, CfC, Embedding) | 4 | 🟨 | P0 |
 | P2 | Auto-RL Cell & Dynamic Routing | 4 | ⬜ | P1 |
 | P3 | Full Assembly & Phase-1 Training | 5 | ⬜ | P2 |
 | P4 | Phase-2 Reinforcement Learning | 4 | ⬜ | P3 |
@@ -68,11 +68,12 @@
 ## PHASE 1 — Core Substrates (Sprint 1)
 *Goal: the static, fully-differentiable components — attention, CfC liquid layer, embedding — hitting the parameter budget.*
 
-### P1.U1 — Temporal Embedding Engine ⬜
-- [ ] `frostbite/modules/embedding.py`: linear projection (sensor-dim → 256) + positional/time encoding for time-series
-- [ ] Unit test: output shape `(B, T, 256)`; gradient flows to input projection
+### P1.U1 — Temporal Embedding Engine ✅
+- [x] `frostbite/modules/embedding.py`: linear projection (sensor-dim → 256) + learned positional encoding (`trunc_normal`, std 0.02) + dropout
+- [x] Explicit shape validation (rejects 2-D input, rejects T > max_len)
+- [x] Unit tests: output shape `(B, T, d_model)`; gradients reach input projection AND positional table (6 tests)
 
-**AC:** Shape + grad tests pass. Params ≈ 8.2M budget (±10%).
+**AC:** ✅ met — shape + grad tests pass (`tests/test_embedding.py`). Param note: at d_model=256/sensor 128/max_len 1024 the embedding is ≈0.3M, not PLAN's 8.2M (that figure implies a ~32K token table); deviation to be logged with the P1.U4 budget table.
 
 ### P1.U2 — Multi-Head Self-Attention ⬜
 - [ ] `frostbite/modules/attention.py`: 4 heads, d=256, pre-norm + residual, optional causal mask
