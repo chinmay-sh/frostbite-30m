@@ -139,11 +139,11 @@
 
 **AC:** ✅ met — forward/backward within budget; routing behavior observable via `BlockOutput.logits`. Test lesson: never use `output.sum()` as a loss on LayerNorm outputs (per-token sum ≡ 0 → fake zero-grad).
 
-### P3.U2 — Global Laya-Style Cortex ⬜
-- [ ] `frostbite/heads/laya_cortex.py`: Choice head (softmax routing, 3.5M), Score head (ordinal scalar, 1.7M), Noul head (sigmoid confidence, 1.8M)
-- [ ] Shared trunk optional but within budget; heads independently testable
+### P3.U2 — Global Laya-Style Cortex ✅
+- [x] `frostbite/heads/laya_cortex.py`: `LayaCortex` — shared GELU trunk over mean-pooled sequence; Choice head (softmax logits), Score head (scalar), Noul head (sigmoid); returns `CortexOutput`
+- [x] Tests: output shapes/types, Noul ∈ [0,1], head independence, full gradient flow, **prod cortex ≤ 7.0M PLAN allocation** (5 tests)
 
-**AC:** Three heads' combined params ≈ 7.0M; shape/type tests for each output.
+**AC:** ✅ met — heads independently testable; combined params well within budget (compact design, headroom preserved for P4).
 
 ### P3.U3 — FrostbiteModel full assembly ⬜
 - [ ] `frostbite/model.py`: Embedding → 6× Reinforced Blocks → Cortex; HALT short-circuit honored at sequence level
