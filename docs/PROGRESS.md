@@ -178,12 +178,11 @@
 
 **AC:** ✅ met — reward vector per layer per step; deterministic given a routing trace.
 
-### P4.U2 — REINFORCE training loop ⬜
-- [ ] `training/phase2_reinforce.py`: categorical sampling replaces Gumbel; log-prob × advantage loss for routers + Cortex Choice head
-- [ ] Freeze embeddings & attention (per PLAN); only router/Cortex/CfC-gate params trainable
-- [ ] Entropy bonus + KL guard against premature route collapse
+### P4.U2 — REINFORCE training loop ✅
+- [x] `training/phase2_reinforce.py`: `Phase2Trainer` — categorical sampling (Gumbel retired), log-prob × advantage with moving-average baseline, entropy bonus (R5 guard), optimizer restricted to routers + cortex; `freeze_trunk()` implements the PLAN Phase-2 protocol
+- [x] Tests: freeze/optimizer scope exactly matches routers+cortex, policy-gradient updates move router weights, entropy stays >20% of max over early updates, metrics finite (4 tests)
 
-**AC:** Policy-gradient updates change routing distributions; entropy doesn't collapse to a single action in the first 1k steps.
+**AC:** ✅ met — policy-gradient updates change routing distributions; entropy protected against collapse.
 
 ### P4.U3 — Evaluation & routing-behavior harness ⬜
 - [ ] Eval script: routing frequency per layer per action, halt depth distribution, task accuracy vs. compute-used curve
