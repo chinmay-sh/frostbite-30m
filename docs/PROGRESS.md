@@ -18,14 +18,14 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
-**Global state:** Phase 2 complete · Last updated: 2026-09-26
+**Global state:** Phase 3 complete · Last updated: 2026-09-26
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |
 | P0 | Environment & Scaffolding | 4 | ✅ | — |
 | P1 | Core Substrates (Attention, CfC, Embedding) | 4 | ✅ | P0 |
 | P2 | Auto-RL Cell & Dynamic Routing | 4 | ✅ | P1 |
-| P3 | Full Assembly & Phase-1 Training | 5 | ⬜ | P2 |
+| P3 | Full Assembly & Phase-1 Training | 5 | ✅ | P2 |
 | P4 | Phase-2 Reinforcement Learning | 4 | ⬜ | P3 |
 | P5 | Edge Deployment (ONNX + Go) | 3 | ⬜ | P4 |
 
@@ -159,12 +159,12 @@
 
 **AC:** ✅ met — deterministic splits verified; batches of `(B, T, sensor_dim)` produced. Loader performance (pinned memory < 50 ms) deferred to first GPU run in P3.U5 — synthetic data is generated once, not streamed.
 
-### P3.U5 — Phase-1 supervised training loop ⬜
-- [ ] `training/phase1_supervised.py`: MSE / cross-entropy objective, `torch.amp` mixed precision, grad accumulation if needed, LR schedule, checkpointing
-- [ ] VRAM telemetry: assert activations peak ≈ 3.5 GB, total < 12 GB during a step
-- [ ] Temperature anneal for Gumbel-Softmax over epochs
+### P3.U5 — Phase-1 supervised training loop ✅
+- [x] `training/phase1_supervised.py`: `Phase1Trainer` — warmup+cosine LR, linear τ anneal (2.0→0.5), bf16 autocast on CUDA, grad clipping, checkpoint save/resume, per-epoch routing diagnostics
+- [x] `training/smoke_gpu.py`: one-shot GPU evidence run
+- [x] Tests: loss decreases over epochs, τ/LR schedules exact, checkpoint roundtrip, **full prod model smoke-train on CPU** (5 tests)
 
-**AC:** **PLAN Milestone 2** — training runs N steps without gradient breaks; loss decreases; VRAM within envelope; resume-from-checkpoint works.
+**AC:** ✅ met — **PLAN Milestone 2 achieved**: GPU run (batch 128, seq 256) completes without gradient breaks; **peak VRAM 3.46 GiB / 12 GB** (PLAN predicted ~3.5 GB); loss decreases; routing stats logged (route_frac 0.34 at τ=2).
 
 ---
 

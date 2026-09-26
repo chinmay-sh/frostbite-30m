@@ -16,6 +16,7 @@
 | 2026-09-26 | D9 | `pyyaml` over `omegaconf` for configs | Fewer deps; typed frozen dataclasses + fail-fast loader is enough |
 | 2026-09-26 | D10 | **One commit per unit** (`feat(P2.U3): ...`), status flip + code + decisions in the same commit; WIP sessions use `wip(P2.U3): ...` | Boring, reviewable history aligned with the tracker; formalized in `AGENTS.md` |
 | 2026-09-26 | D11 | **Param budget re-calibrated vs PLAN §2.1 table.** Measured: embedding 295K (table: 8.2M — implies ~32K vocab, unreachable with sensor_dim=128); attention 263,680/blk (table: 1.6M/6 ≈ 266K ✓); CfC backbone widened 128→1344 → 2.07M/blk ≈ 12.4M (table: 12.5M ✓). Static stack total: **14.28M**, CfC-dominant, cap unchanged at 30M | PLAN's per-module table doesn't decompose arithmetic-wise for our sensor input; keep PLAN's *intent* (CfC-dominant, ≤30M) not its unreachable numbers; embedding slack becomes headroom for router/cortex |
+| 2026-09-26 | D12 | Phase-1 supervises the Score head on the *mean* next-state vector (MSE) as the differentiable proxy objective | PLAN §3 wants next-state prediction; a full sensor-dim prediction head would add params and duplicates what the embedding already inverts; Score-head regression keeps Milestone-2 simple and gives the router a learnable signal. Real head semantics (task reward wiring) arrive in Phase 4 |
 
 ### D7 detail — confirmed `ncps` CfC issues (2026-09-26)
 

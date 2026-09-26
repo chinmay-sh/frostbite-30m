@@ -16,11 +16,13 @@ from frostbite.config.train import TrainConfig
 class SyntheticTelemetry(Dataset):
     """Windows of synthetic sensor telemetry with next-state targets."""
 
-    def __init__(self, config: TrainConfig, split: str, n_series: int = 64) -> None:
+    def __init__(
+        self, config: TrainConfig, split: str, n_series: int = 64, sensor_dim: int = 128
+    ) -> None:
         if split not in ("train", "val"):
             raise ValueError(f"split must be train or val, got {split}")
         self.seq_len = config.data.seq_len
-        self.sensor_dim = 128  # must match configs/arch_30m.yaml embedding
+        self.sensor_dim = sensor_dim
         # Different but deterministic seeds per split.
         seed = 1000 if split == "train" else 2000
         generator = torch.Generator().manual_seed(seed)
