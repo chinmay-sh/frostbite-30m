@@ -27,3 +27,6 @@ checkpoints/
 .vscode/
 .idea/
 Thumbs.db
+
+# test output files
+*_result.txt
