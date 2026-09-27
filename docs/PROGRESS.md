@@ -266,7 +266,7 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
 - [x] **Continuation attempt 2 (D19 fixes: β-carry, advantage standardization, entropy telemetry):** 130/200 updates, returns flat ~−210, entropy pinned near max → diagnosed entropy-bonus dominance
 - [x] **Continuation attempt 3 (D20 fixes: entropy 0.002, stage-2 trunk unfreeze 1e-5):** stopped at 160/200 by user decision — returns *degrading* (−191 → −275 mean) as the policy committed (entropy 1.35→1.27): policy gradient committing to noise; **parameterization ceiling confirmed** (frozen-ish trunk + 8-dim choice bottleneck → 4 actions)
 
-**Status: ⏸ paused 2026-09-27 (user decision) — awaiting direction.** Evidence trail: negative control (pre-fix, zero learning) + three fix generations in D19/D20. Best checkpoint: `runs/p6/control.pt` (eval −137.3 ± 107.5, 15/15 natural terminations). Open options: (a) close P6.U3 as documented negative result, run P6.U4 ablations on `control.pt`; (b) wider action head off the trunk (bypass choice bottleneck); (c) PPO. No further runs launched without user go-ahead.
+**Status: 🟨 resumed 2026-09-27 — options (b)+(c) implemented (D21/D22), staged for user-launched run.** Evidence trail: negative control (pre-fix, zero learning) + three fix generations in D19/D20. Best checkpoint: `runs/p6/control.pt` (eval −137.3 ± 107.5, 15/15 natural terminations). Pending: `uv run python training/control/run_ppo.py --resume runs/p6/control.pt --updates 200 --episodes-per-update 8 --trunk-lr 1e-5 --save runs/p6/control_ppo.pt` (see RUNBOOK §1.5).
 
 ### P6.U4 — Evaluation & evidence ⬜
 - [ ] Return curves: learned router vs SKIP-only ablation vs ROUTE-all ablation (same trunk)

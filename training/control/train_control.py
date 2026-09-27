@@ -103,7 +103,7 @@ class ControlTrainer:
         sensors = self.policy.adapter(windows.to(device))
         out = self.policy.model(sensors)
 
-        logits = self.policy.action_head(out.cortex.choice)
+        logits = self.policy.action_head(out.trunk.mean(dim=1))  # D21 trunk head
         actions = torch.tensor(episode.actions, device=device)
         dist = torch.distributions.Categorical(logits=logits)
         log_probs = dist.log_prob(actions)

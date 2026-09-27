@@ -70,6 +70,20 @@ If returns stay flat through ~update 100 with entropy pinned near max, see `docs
 Reference figures will be recorded in `docs/PROGRESS.md` §P6.U3 when a successful run completes.
 Output: `runs/p6/control*.pt`.
 
+### 1.5 P6 control — PPO with trunk action head (D21/D22)
+
+The current best path: trunk-fed action head + PPO (GAE, clipped surrogate).
+
+```bash
+uv run python training/control/run_ppo.py --resume runs/p6/control.pt \
+    --updates 200 --episodes-per-update 8 --trunk-lr 1e-5 \
+    --save runs/p6/control_ppo.pt
+```
+
+Note: the action head changed shape (choice-bottleneck → trunk, D21); resuming from a pre-D21 checkpoint starts a fresh head — the message `action_head shape changed` is expected.
+Watch for: `return` climbing AND `clip` staying below ~0.3 (high clip-fraction means the policy is moving too far per batch).
+Output: `runs/p6/control_ppo.pt`.
+
 ## 2. Evaluation
 
 ### 2.1 Routing behavior on telemetry (Milestone-3 table)

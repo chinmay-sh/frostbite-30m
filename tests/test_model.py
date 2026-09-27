@@ -24,6 +24,7 @@ def test_forward_shapes(arch_config):
         arch_config.n_blocks, 2, 8, 3,
     )
     assert out.halt_layer.shape == (2,)
+    assert out.trunk.shape == (2, 8, arch_config.d_model)
 
 
 def test_eval_deterministic(arch_config):

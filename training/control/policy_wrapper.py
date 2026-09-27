@@ -23,14 +23,19 @@ class ControlDecision:
 
 
 class ControlPolicy(nn.Module):
-    """Wraps a FrostbiteModel + ObsAdapter into a Gymnasium-compatible agent."""
+    """Wraps a FrostbiteModel + ObsAdapter into a Gymnasium-compatible agent.
+
+    The action head reads the final TRUNK representation (mean-pooled over
+    the window), not the 8-dim choice bottleneck — D21: routing the policy
+    through choice logits gave the policy gradient too little signal.
+    """
 
     def __init__(self, model: FrostbiteModel, obs_dim: int, window: int = 32) -> None:
         super().__init__()
         self.model = model
         self.window = window
         self.adapter = ObsAdapter(obs_dim, model.embedding.input_proj.in_features, window)
-        self.action_head = nn.Linear(model.cortex.choice_head.out_features, 4)
+        self.action_head = nn.Linear(model.embedding.input_proj.out_features, 4)
 
     @torch.no_grad()
     def act(self, window_tensor: Tensor) -> ControlDecision:
@@ -38,7 +43,8 @@ class ControlPolicy(nn.Module):
         device = next(self.parameters()).device
         sensors = self.adapter(window_tensor.to(device))
         out = self.model(sensors)
-        logits = self.action_head(out.cortex.choice)
+        pooled = out.trunk.mean(dim=1)  # (B, d_model) trunk representation
+        logits = self.action_head(pooled)
         dist = torch.distributions.Categorical(logits=logits)
         action = dist.sample()
         return ControlDecision(

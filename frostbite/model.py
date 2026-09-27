@@ -21,6 +21,7 @@ class ModelOutput:
     cortex: CortexOutput
     halt_layer: Tensor  # (B,) index of the layer at which each sample halted
     route_probs: Tensor  # (n_blocks, B, T, 3) routing probabilities per block
+    trunk: Tensor  # (B, T, d_model) final resolved representation (pre-cortex)
 
 
 class FrostbiteModel(nn.Module):
@@ -57,4 +58,6 @@ class FrostbiteModel(nn.Module):
             halt_layer = torch.where(halted_now, i, halt_layer)
 
         hidden = state.resolve(hidden)  # frozen reps for halted tokens
-        return ModelOutput(self.cortex(hidden), halt_layer, torch.stack(route_probs))
+        return ModelOutput(
+            self.cortex(hidden), halt_layer, torch.stack(route_probs), hidden
+        )
