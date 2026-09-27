@@ -7,6 +7,7 @@ Hybrid 29.8M-parameter edge model: Self-Attention + CfC liquid dynamics + intern
 - `docs/PLAN.md` — architecture specification & implementation plan (the *what*)
 - `docs/PROGRESS.md` — phase/unit execution tracker with acceptance criteria (the *how far*)
 - `docs/DECISIONS.md` — append-only log of every project decision (the *why*)
+- `docs/RUNBOOK.md` — manual runbook: every training/eval command, end to end
 - `AGENTS.md` — working conventions for agents & contributors (read before writing code)
 
 ## Status
@@ -15,7 +16,7 @@ Hybrid 29.8M-parameter edge model: Self-Attention + CfC liquid dynamics + intern
 | --- | --- | --- |
 | P0–P3 | Scaffolding → substrates → routing → full model + Phase-1 training | ✅ (Milestones 1 & 2) |
 | P4 | REINFORCE routing on TelemetryEnv | ✅ **Milestone 3** — compute allocation tracks dynamics difficulty |
-| P5 | Edge deployment (ONNX + Go) | ⏸ deferred (D18) |
+| P5 | Edge deployment (ONNX + Go) | ⏸ deferred (D18) |🟨 U1–U2 ✅, U3 fine-tuning run in progress
 | P6 | Real-world control fine-tuning (Gymnasium LunarLander-v3) | ⬜ planned — see `docs/PROGRESS.md` §Phase 6 |
 
 Current model: **29.4M params** (d_model=320, 6 blocks, 4 heads, CfC backbone 2242), trains in <5 GiB VRAM.
@@ -35,7 +36,9 @@ tests/        # test_param_count.py, test_gradients.py
 ## Quickstart
 
 ```bash
-uv sync                       # install deps (P0.U1)
-uv run pytest                 # run test suite
-uv run python -m frostbite    # CLI entry (once wired in P0.U3)
+uv sync                       # install deps from uv.lock
+uv run pytest                 # run test suite (~1 min, CPU)
+uv run python -m frostbite info   # GPU + config sanity check
 ```
+
+For training pipelines, evaluation, ablations, and troubleshooting see **`docs/RUNBOOK.md`** — the manual runbook with every command in execution order.
