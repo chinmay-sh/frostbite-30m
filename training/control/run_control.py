@@ -22,6 +22,10 @@ def main() -> None:
     parser.add_argument("--resume", default=None, help="control checkpoint to continue from")
     parser.add_argument("--updates", type=int, default=250)
     parser.add_argument("--episodes-per-update", type=int, default=4)
+    parser.add_argument("--entropy-coef", type=float, default=None,
+                        help="override entropy coefficient (default 0.002)")
+    parser.add_argument("--trunk-lr", type=float, default=None,
+                        help="stage-2 trunk unfreeze LR (0 = frozen; e.g. 1e-5)")
     parser.add_argument("--save", default="runs/p6/control.pt")
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
@@ -53,7 +57,17 @@ def main() -> None:
         episodes_per_update=args.episodes_per_update,
         updates=args.updates,
     )
+    if args.entropy_coef is not None:
+        config = ControlRLConfig(
+            **{**config.__dict__, "entropy_coef": args.entropy_coef}
+        )
+    if args.trunk_lr is not None:
+        config = ControlRLConfig(
+            **{**config.__dict__, "trunk_lr": args.trunk_lr}
+        )
     trainer = ControlTrainer(policy, env, config, resume=bool(args.resume))
+    if config.trunk_lr > 0:
+        print(f"stage-2: trunk unfrozen at lr {config.trunk_lr}")
     history = trainer.train()
 
     returns = [m["return"] for m in history]

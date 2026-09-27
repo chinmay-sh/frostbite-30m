@@ -43,6 +43,43 @@ def test_resume_uses_beta_floor(arch_config):
     env.close()
 
 
+def test_trunk_frozen_by_default(arch_config):
+    """trunk_lr=0: optimizer holds only heads; embedding/attention stay frozen."""
+    seed_everything(0)
+    env = gym.make("LunarLander-v3")
+    policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
+    trainer = ControlTrainer(policy, env,
+                             ControlRLConfig(episodes_per_update=1, log_every=100))
+    optimized = {id(p) for g in trainer.optimizer.param_groups for p in g["params"]}
+    assert len(trainer.optimizer.param_groups) == 1
+    for p in policy.model.embedding.parameters():
+        assert id(p) not in optimized
+    env.close()
+
+
+def test_stage2_unfreezes_trunk_at_low_lr(arch_config):
+    """trunk_lr>0: two param groups, trunk at the lower LR, substrates frozen."""
+    seed_everything(0)
+    env = gym.make("LunarLander-v3")
+    policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
+    trainer = ControlTrainer(
+        policy, env,
+        ControlRLConfig(episodes_per_update=1, log_every=100,
+                        trunk_lr=1e-5, lr=3e-4),
+    )
+    assert len(trainer.optimizer.param_groups) == 2
+    heads_group, trunk_group = trainer.optimizer.param_groups
+    assert heads_group["lr"] == pytest.approx(3e-4)
+    assert trunk_group["lr"] == pytest.approx(1e-5)
+    trunk_ids = {id(p) for p in trunk_group["params"]}
+    for block in policy.model.blocks:
+        for p in block.executor.parameters():  # substrates never in trunk group
+            assert id(p) not in trunk_ids
+        for p in block.attention.parameters():
+            assert id(p) in trunk_ids
+    env.close()
+
+
 def test_update_runs_and_moves_policy(arch_config):
     """One update collects episodes, backprops, and changes trainable weights."""
     seed_everything(0)

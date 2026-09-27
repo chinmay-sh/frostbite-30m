@@ -18,8 +18,9 @@ class ControlRLConfig:
     """Hyperparameters of the control fine-tuning loop."""
 
     lr: float = 3e-4
+    trunk_lr: float = 0.0  # stage-2 unfreeze: 0 = trunk frozen (P6 plan)
     gamma: float = 0.99
-    entropy_coef: float = 0.01
+    entropy_coef: float = 0.002  # 0.01 kept the policy near-uniform (D20)
     episodes_per_update: int = 4
     updates: int = 250
     beta_start: float = 0.2
@@ -52,10 +53,32 @@ class ControlTrainer:
         self.env = env
         self.config = config or ControlRLConfig()
         self.resume = resume  # D19: resumed runs continue beta at the floor
-        self.optimizer = torch.optim.Adam(
-            policy.parameters_for_training(), lr=self.config.lr
-        )
+        self.optimizer = self._build_optimizer()
         self.reward_config = RewardConfig(beta=self.config.beta_start)
+
+    def _build_optimizer(self) -> torch.optim.Adam:
+        """Two groups: policy heads at full LR; trunk at trunk_lr (0 = frozen).
+
+        Stage-2 unfreeze (P6 plan): embedding + attention adapt at low LR;
+        substrates stay frozen regardless — CfC dynamics are protected.
+        """
+        heads: list[nn.Parameter] = list(self.policy.action_head.parameters())
+        heads += list(self.policy.model.cortex.parameters())
+        for block in self.policy.model.blocks:
+            heads += list(block.router.parameters())
+
+        trunk: list[nn.Parameter] = list(self.policy.adapter.parameters())
+        trunk += list(self.policy.model.embedding.parameters())
+        for block in self.policy.model.blocks:
+            trunk += list(block.attention.parameters())
+
+        groups: list[dict] = [{"params": heads, "lr": self.config.lr}]
+        if self.config.trunk_lr > 0:
+            self.policy.model.embedding.requires_grad_(True)
+            for block in self.policy.model.blocks:
+                block.attention.requires_grad_(True)
+            groups.append({"params": trunk, "lr": self.config.trunk_lr})
+        return torch.optim.Adam(groups)
 
     def beta_at(self, update: int) -> float:
         """Anneal beta linearly from beta_start to beta_end (R8 mitigation)."""
@@ -142,7 +165,9 @@ class ControlTrainer:
             (loss / len(episodes)).backward()  # accumulate the episode mean
             route_fracs.append(route_frac)
             entropies.append(entropy)
-        nn.utils.clip_grad_norm_(self.policy.parameters_for_training(), 1.0)
+        nn.utils.clip_grad_norm_(
+            [p for g in self.optimizer.param_groups for p in g["params"]], 1.0
+        )
         self.optimizer.step()
 
         return {

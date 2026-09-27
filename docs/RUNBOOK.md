@@ -52,12 +52,23 @@ Watch for: loss dropping ≥ 50% (reference: 0.0164 → 0.0048, −70%). Output:
 The long one: actor-critic control learning on LunarLander-v3.
 
 ```bash
+# fresh run from warm-start
 uv run python training/control/run_control.py --updates 250
+
+# continuation: resume from a control checkpoint, 8 episodes/update
+uv run python training/control/run_control.py --resume runs/p6/control.pt \
+    --updates 200 --episodes-per-update 8 --save runs/p6/control_v2.pt
+
+# stage-2: additionally unfreeze embedding+attention at low LR (D20)
+uv run python training/control/run_control.py --resume runs/p6/control.pt \
+    --updates 200 --episodes-per-update 8 --trunk-lr 1e-5 \
+    --save runs/p6/control_v3.pt
 ```
 
-Watch for: `return` climbing away from −200 (random baseline) over the first ~30 updates.
-Reference figures will be recorded in `docs/PROGRESS.md` §P6.U3 when the current run completes.
-Output: `runs/p6/control.pt`.
+Watch for: `return` climbing away from −200 (random baseline) over the first ~30 updates, and `entropy` (max 1.386) drifting down as the policy commits — a healthy run shows both.
+If returns stay flat through ~update 100 with entropy pinned near max, see `docs/DECISIONS.md` D19/D20 for the diagnosis trail.
+Reference figures will be recorded in `docs/PROGRESS.md` §P6.U3 when a successful run completes.
+Output: `runs/p6/control*.pt`.
 
 ## 2. Evaluation
 
