@@ -35,7 +35,8 @@ class ControlPolicy(nn.Module):
     @torch.no_grad()
     def act(self, window_tensor: Tensor) -> ControlDecision:
         """Sample an action for one padded window (1, T, obs_dim)."""
-        sensors = self.adapter(window_tensor)
+        device = next(self.parameters()).device
+        sensors = self.adapter(window_tensor.to(device))
         out = self.model(sensors)
         logits = self.action_head(out.cortex.choice)
         dist = torch.distributions.Categorical(logits=logits)

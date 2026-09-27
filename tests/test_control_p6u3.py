@@ -1,0 +1,65 @@
+"""P6.U3 tests: control fine-tuning mechanics (tiny scale, few updates)."""
+
+from __future__ import annotations
+
+import gymnasium as gym
+import pytest
+import torch
+
+from frostbite.model import FrostbiteModel
+from frostbite.utils import seed_everything
+from training.control.policy_wrapper import ControlPolicy
+from training.control.train_control import ControlRLConfig, ControlTrainer, returns_to_go
+
+
+def test_returns_to_go():
+    rewards = [1.0, 1.0, 1.0]
+    out = returns_to_go(rewards, gamma=0.5)
+    # R0 = 1 + .5*(1 + .5*1) = 1.75, R1 = 1.5, R2 = 1.0
+    assert out.tolist() == pytest.approx([1.75, 1.5, 1.0])
+
+
+def test_beta_anneal_schedule():
+    config = ControlRLConfig(beta_start=0.2, beta_end=0.02, updates=100, beta_anneal=0.5)
+    trainer = ControlTrainer.__new__(ControlTrainer)
+    trainer.config = config
+    assert trainer.beta_at(0) == pytest.approx(0.2)
+    assert trainer.beta_at(50) == pytest.approx(0.02)
+    assert trainer.beta_at(99) == pytest.approx(0.02)  # clamped
+
+
+def test_update_runs_and_moves_policy(arch_config):
+    """One update collects episodes, backprops, and changes trainable weights."""
+    seed_everything(0)
+    env = gym.make("LunarLander-v3")
+    policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
+    trainer = ControlTrainer(
+        policy, env,
+        ControlRLConfig(episodes_per_update=1, updates=1, log_every=1),
+    )
+    before = policy.action_head.weight.detach().clone()
+    metrics = trainer.update(0)
+    env.close()
+
+    assert torch.isfinite(torch.tensor(metrics["loss"]))
+    assert not torch.allclose(before, policy.action_head.weight.detach())
+
+
+def test_loss_recomputation_matches_rollout_mode(arch_config):
+    """The loss path must use eval routing (argmax), same as acting."""
+    seed_everything(3)
+    env = gym.make("LunarLander-v3")
+    policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
+    trainer = ControlTrainer(
+        policy, env,
+        ControlRLConfig(episodes_per_update=1, updates=1),
+    )
+    from training.control.rollout import run_episode
+
+    episode = run_episode(env, policy, seed=1)
+    policy.model.eval()
+    loss, _ = trainer._episode_loss(episode, episode.total_reward)
+    loss.backward()  # must be differentiable
+    assert policy.action_head.weight.grad is not None
+    assert torch.isfinite(policy.action_head.weight.grad).all()
+    env.close()

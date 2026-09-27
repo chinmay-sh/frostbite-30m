@@ -1,0 +1,141 @@
+"""P6.U3: actor-critic control fine-tuning on LunarLander."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import torch
+from torch import Tensor, nn
+
+from frostbite.utils import seed_everything
+from training.control.policy_wrapper import ControlPolicy
+from training.control.rollout import Episode, run_episode
+from training.rewards import RewardConfig
+
+
+@dataclass
+class ControlRLConfig:
+    """Hyperparameters of the control fine-tuning loop."""
+
+    lr: float = 3e-4
+    gamma: float = 0.99
+    entropy_coef: float = 0.01
+    episodes_per_update: int = 4
+    updates: int = 250
+    beta_start: float = 0.2
+    beta_end: float = 0.02
+    beta_anneal: float = 0.8  # fraction of updates over which beta decays
+    log_every: int = 10
+
+
+def returns_to_go(rewards: list[float], gamma: float) -> Tensor:
+    """Discounted reward-to-go for one episode: R_t = r_t + gamma * R_{t+1}."""
+    out = torch.zeros(len(rewards))
+    running = 0.0
+    for t in reversed(range(len(rewards))):
+        running = rewards[t] + gamma * running
+        out[t] = running
+    return out
+
+
+class ControlTrainer:
+    """Fine-tunes the control policy with episodic actor-critic REINFORCE."""
+
+    def __init__(
+        self,
+        policy: ControlPolicy,
+        env,
+        config: ControlRLConfig | None = None,
+    ) -> None:
+        self.policy = policy
+        self.env = env
+        self.config = config or ControlRLConfig()
+        self.optimizer = torch.optim.Adam(
+            policy.parameters_for_training(), lr=self.config.lr
+        )
+        self.reward_config = RewardConfig(beta=self.config.beta_start)
+
+    def beta_at(self, update: int) -> float:
+        """Anneal beta linearly from beta_start to beta_end (R8 mitigation)."""
+        c = self.config
+        frac = min(1.0, update / max(1, int(c.beta_anneal * c.updates)))
+        return c.beta_start + (c.beta_end - c.beta_start) * frac
+
+    def _episode_loss(self, episode: Episode, env_reward: float) -> tuple[Tensor, float]:
+        """Recompute log-probs with grad; advantage = return-to-go - V(s).
+
+        The model stays in eval mode so routing is argmax-deterministic —
+        identical to the routing used during rollout (on-policy consistency).
+        eval() does not block gradients; only no_grad would.
+        """
+        windows = torch.cat(episode.windows, dim=0)  # (T, W, obs)
+        device = next(self.policy.parameters()).device
+        sensors = self.policy.adapter(windows.to(device))
+        out = self.policy.model(sensors)
+
+        logits = self.policy.action_head(out.cortex.choice)
+        actions = torch.tensor(episode.actions, device=device)
+        log_probs = torch.distributions.Categorical(logits=logits).log_prob(actions)
+
+        values = out.cortex.score  # (T,) critic
+        returns = returns_to_go(episode.rewards, self.config.gamma).to(device)
+        advantage = (returns - values.detach()) / (returns.std() + 1e-8)
+
+        policy_loss = -(log_probs * advantage).mean()
+        value_loss = nn.functional.mse_loss(values, returns)
+        entropy = torch.distributions.Categorical(logits=logits).entropy().mean()
+
+        # Intrinsic compute reward, beta-annealed (R8): mean over blocks.
+        route_frac = (out.route_probs[..., 0]).mean().item()
+        intrinsic = 0.1 * (1.0 - route_frac) - 0.1 * route_frac
+        loss = (
+            policy_loss
+            + 0.5 * value_loss
+            - self.config.entropy_coef * entropy
+            - self.reward_config.beta * intrinsic
+        )
+        return loss, route_frac
+
+    def update(self, step: int) -> dict[str, float]:
+        """Collect episodes and apply one gradient update."""
+        self.reward_config = RewardConfig(beta=self.beta_at(step))
+        self.policy.eval()
+
+        episodes = [
+            run_episode(self.env, self.policy, seed=1000 + step * 10 + i)
+            for i in range(self.config.episodes_per_update)
+        ]
+        env_returns = [e.total_reward for e in episodes]
+
+        losses, route_fracs = [], []
+        for episode in episodes:
+            loss, route_frac = self._episode_loss(episode, episode.total_reward)
+            losses.append(loss)
+            route_fracs.append(route_frac)
+
+        total = torch.stack(losses).mean()
+        self.optimizer.zero_grad(set_to_none=True)
+        total.backward()
+        nn.utils.clip_grad_norm_(self.policy.parameters_for_training(), 1.0)
+        self.optimizer.step()
+
+        return {
+            "loss": total.item(),
+            "return": sum(env_returns) / len(env_returns),
+            "route_frac": sum(route_fracs) / len(route_fracs),
+            "beta": self.reward_config.beta,
+        }
+
+    def train(self) -> list[dict[str, float]]:
+        """Run the full fine-tuning; prints progress periodically."""
+        history = []
+        for step in range(self.config.updates):
+            metrics = self.update(step)
+            history.append(metrics)
+            if (step + 1) % self.config.log_every == 0:
+                print(
+                    f"update {step + 1:4d} | return {metrics['return']:+8.1f} "
+                    f"| route {metrics['route_frac']:.3f} | beta {metrics['beta']:.3f}",
+                    flush=True,
+                )
+        return history
