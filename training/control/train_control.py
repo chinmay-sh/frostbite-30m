@@ -82,7 +82,11 @@ class ControlTrainer:
         advantage = (returns - values.detach()) / (returns.std() + 1e-8)
 
         policy_loss = -(log_probs * advantage).mean()
-        value_loss = nn.functional.mse_loss(values, returns)
+        # Standardize targets before the critic MSE: raw LunarLander returns
+        # (~-200) would make value_loss ~4e4 and drown the policy gradient.
+        value_loss = nn.functional.mse_loss(
+            values, (returns - returns.mean()) / (returns.std() + 1e-8)
+        )
         entropy = torch.distributions.Categorical(logits=logits).entropy().mean()
 
         # Intrinsic compute reward, beta-annealed (R8): mean over blocks.
@@ -97,7 +101,12 @@ class ControlTrainer:
         return loss, route_frac
 
     def update(self, step: int) -> dict[str, float]:
-        """Collect episodes and apply one gradient update."""
+        """Collect episodes and apply one gradient update.
+
+        Backprops per episode (not stacked): each episode's autograd graph
+        (up to 1000 steps through the 29.4M model) is freed immediately —
+        stacking 4 full graphs grows memory until OOM (crashed at ~update 110).
+        """
         self.reward_config = RewardConfig(beta=self.beta_at(step))
         self.policy.eval()
 
@@ -107,20 +116,16 @@ class ControlTrainer:
         ]
         env_returns = [e.total_reward for e in episodes]
 
-        losses, route_fracs = [], []
+        self.optimizer.zero_grad(set_to_none=True)
+        route_fracs = []
         for episode in episodes:
             loss, route_frac = self._episode_loss(episode, episode.total_reward)
-            losses.append(loss)
+            (loss / len(episodes)).backward()  # accumulate the episode mean
             route_fracs.append(route_frac)
-
-        total = torch.stack(losses).mean()
-        self.optimizer.zero_grad(set_to_none=True)
-        total.backward()
         nn.utils.clip_grad_norm_(self.policy.parameters_for_training(), 1.0)
         self.optimizer.step()
 
         return {
-            "loss": total.item(),
             "return": sum(env_returns) / len(env_returns),
             "route_frac": sum(route_fracs) / len(route_fracs),
             "beta": self.reward_config.beta,

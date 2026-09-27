@@ -258,7 +258,9 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
 - [x] `training/control/train_control.py`: `ControlTrainer` — episodic A2C (advantage = return-to-go − V(s), value loss, entropy guard, grad clip), β anneal 0.2→0.02 over 80% of updates, **eval-mode routing during loss recomputation** (on-policy consistency)
 - [x] `training/control/run_control.py`: entrypoint loading `runs/p6/warm.pt`
 - [x] Tests: return-to-go math, β schedule clamping, update moves weights, differentiable loss path (4 tests)
-- [ ] Real 250-update run in progress (~2.5 min/update — R7 batch-1 inference cost; update 10: return −169.8 vs random ~−200)
+- [ ] Real 250-update run **restarted 2026-09-27 with two fixes** after first attempt crashed at update ~110:
+  1. **OOM fix**: per-episode `backward()` (stacked 4-episode graphs grew memory as episodes lengthened toward 1000-step truncation)
+  2. **Value-scale fix**: critic MSE now on standardized returns — raw LunarLander returns (~−200) made value_loss ~4e4, drowning the policy gradient under grad-clip (root cause of no-learning, returns oscillating at random baseline)
 
 **AC:** 🟨 pending run completion — need mean return ≥ 3× random baseline.
 
