@@ -254,15 +254,15 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
 
 **AC:** ✅ met — next-obs loss −70% (≥ 50% required); warm-start checkpoint saved; cap holds.
 
-### P6.U3 — Control fine-tuning loop (actor-critic REINFORCE) 🟨
-- [x] `training/control/train_control.py`: `ControlTrainer` — episodic A2C (advantage = return-to-go − V(s), value loss, entropy guard, grad clip), β anneal 0.2→0.02 over 80% of updates, **eval-mode routing during loss recomputation** (on-policy consistency)
-- [x] `training/control/run_control.py`: entrypoint loading `runs/p6/warm.pt`
-- [x] Tests: return-to-go math, β schedule clamping, update moves weights, differentiable loss path (4 tests)
-- [ ] Real 250-update run **restarted 2026-09-27 with two fixes** after first attempt crashed at update ~110:
-  1. **OOM fix**: per-episode `backward()` (stacked 4-episode graphs grew memory as episodes lengthened toward 1000-step truncation)
-  2. **Value-scale fix**: critic MSE now on standardized returns — raw LunarLander returns (~−200) made value_loss ~4e4, drowning the policy gradient under grad-clip (root cause of no-learning, returns oscillating at random baseline)
+### P6.U3 — Control fine-tuning loop (actor-critic REINFORCE) 🟨 partial
+- [x] `training/control/train_control.py`: `ControlTrainer` — episodic A2C (advantage = return-to-go − V(s), value loss on standardized returns, entropy guard, grad clip), β anneal 0.2→0.02, eval-mode routing in loss recompute (on-policy consistency)
+- [x] `training/control/run_control.py` + tests (4/4)
+- [x] **Completed 250-update run (fixed code):** first-10 mean **−203.4** → last-10 **−153.1**, best update **−86.2** — learning is real but volatile
+- [x] **Negative control (pre-fix overnight run, 250 updates):** −175.6 → −211.7, zero learning — post-hoc A/B confirmation of the value-scale diagnosis (raw ~−200 returns made value_loss ≈ 4e4, drowning the policy gradient)
+- [x] **AC (≥3× random baseline) NOT met** — mean return improved ~25% but the lander still crashes; variance high (4 episodes/update)
+- [x] **Standalone eval (15 fresh episodes):** return **−137.3 ± 107.5**, 15/15 natural terminations (no timeouts); **per-phase routing: P(ROUTE) 0.449 early / 0.421 mid / 0.367 late** — router spends ~22% more compute on the energetic early phase (partial P6.U4 evidence)
 
-**AC:** 🟨 pending run completion — need mean return ≥ 3× random baseline.
+**Verdict: 🟨 mechanism validated, AC open.** Next lever: continuation run from `runs/p6/control.pt` with `--episodes-per-update 8` (variance reduction), optionally higher entropy coef.
 
 ### P6.U4 — Evaluation & evidence ⬜
 - [ ] Return curves: learned router vs SKIP-only ablation vs ROUTE-all ablation (same trunk)
