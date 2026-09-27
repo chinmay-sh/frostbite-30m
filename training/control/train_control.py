@@ -46,10 +46,12 @@ class ControlTrainer:
         policy: ControlPolicy,
         env,
         config: ControlRLConfig | None = None,
+        resume: bool = False,
     ) -> None:
         self.policy = policy
         self.env = env
         self.config = config or ControlRLConfig()
+        self.resume = resume  # D19: resumed runs continue beta at the floor
         self.optimizer = torch.optim.Adam(
             policy.parameters_for_training(), lr=self.config.lr
         )
@@ -61,7 +63,12 @@ class ControlTrainer:
         frac = min(1.0, update / max(1, int(c.beta_anneal * c.updates)))
         return c.beta_start + (c.beta_end - c.beta_start) * frac
 
-    def _episode_loss(self, episode: Episode, env_reward: float) -> tuple[Tensor, float]:
+    @property
+    def beta_floor(self) -> float:
+        """Terminal beta value — resuming runs continue from here (D19)."""
+        return self.config.beta_end
+
+    def _episode_loss(self, episode: Episode, env_reward: float) -> tuple[Tensor, float, float]:
         """Recompute log-probs with grad; advantage = return-to-go - V(s).
 
         The model stays in eval mode so routing is argmax-deterministic —
@@ -75,11 +82,17 @@ class ControlTrainer:
 
         logits = self.policy.action_head(out.cortex.choice)
         actions = torch.tensor(episode.actions, device=device)
-        log_probs = torch.distributions.Categorical(logits=logits).log_prob(actions)
+        dist = torch.distributions.Categorical(logits=logits)
+        log_probs = dist.log_prob(actions)
 
         values = out.cortex.score  # (T,) critic
         returns = returns_to_go(episode.rewards, self.config.gamma).to(device)
-        advantage = (returns - values.detach()) / (returns.std() + 1e-8)
+        raw_advantage = returns - values.detach()
+        # Standardize the ADVANTAGE (not returns): noisy short episodes must
+        # not get their noise amplified by a small returns.std().
+        advantage = (raw_advantage - raw_advantage.mean()) / (
+            raw_advantage.std() + 1e-8
+        )
 
         policy_loss = -(log_probs * advantage).mean()
         # Standardize targets before the critic MSE: raw LunarLander returns
@@ -87,7 +100,7 @@ class ControlTrainer:
         value_loss = nn.functional.mse_loss(
             values, (returns - returns.mean()) / (returns.std() + 1e-8)
         )
-        entropy = torch.distributions.Categorical(logits=logits).entropy().mean()
+        entropy = dist.entropy().mean()
 
         # Intrinsic compute reward, beta-annealed (R8): mean over blocks.
         route_frac = (out.route_probs[..., 0]).mean().item()
@@ -98,7 +111,7 @@ class ControlTrainer:
             - self.config.entropy_coef * entropy
             - self.reward_config.beta * intrinsic
         )
-        return loss, route_frac
+        return loss, route_frac, float(entropy.item())
 
     def update(self, step: int) -> dict[str, float]:
         """Collect episodes and apply one gradient update.
@@ -107,7 +120,11 @@ class ControlTrainer:
         (up to 1000 steps through the 29.4M model) is freed immediately —
         stacking 4 full graphs grows memory until OOM (crashed at ~update 110).
         """
-        self.reward_config = RewardConfig(beta=self.beta_at(step))
+        if self.resume:
+            # D19: a resumed run already annealed beta — continue at the floor.
+            self.reward_config = RewardConfig(beta=self.beta_floor)
+        else:
+            self.reward_config = RewardConfig(beta=self.beta_at(step))
         self.policy.eval()
 
         episodes = [
@@ -117,17 +134,21 @@ class ControlTrainer:
         env_returns = [e.total_reward for e in episodes]
 
         self.optimizer.zero_grad(set_to_none=True)
-        route_fracs = []
+        route_fracs, entropies = [], []
         for episode in episodes:
-            loss, route_frac = self._episode_loss(episode, episode.total_reward)
+            loss, route_frac, entropy = self._episode_loss(
+                episode, episode.total_reward
+            )
             (loss / len(episodes)).backward()  # accumulate the episode mean
             route_fracs.append(route_frac)
+            entropies.append(entropy)
         nn.utils.clip_grad_norm_(self.policy.parameters_for_training(), 1.0)
         self.optimizer.step()
 
         return {
             "return": sum(env_returns) / len(env_returns),
             "route_frac": sum(route_fracs) / len(route_fracs),
+            "entropy": sum(entropies) / len(entropies),
             "beta": self.reward_config.beta,
         }
 
@@ -140,7 +161,9 @@ class ControlTrainer:
             if (step + 1) % self.config.log_every == 0:
                 print(
                     f"update {step + 1:4d} | return {metrics['return']:+8.1f} "
-                    f"| route {metrics['route_frac']:.3f} | beta {metrics['beta']:.3f}",
+                    f"| route {metrics['route_frac']:.3f} "
+                    f"| entropy {metrics['entropy']:.3f} "
+                    f"| beta {metrics['beta']:.3f}",
                     flush=True,
                 )
         return history

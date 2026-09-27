@@ -53,7 +53,7 @@ def main() -> None:
         episodes_per_update=args.episodes_per_update,
         updates=args.updates,
     )
-    trainer = ControlTrainer(policy, env, config)
+    trainer = ControlTrainer(policy, env, config, resume=bool(args.resume))
     history = trainer.train()
 
     returns = [m["return"] for m in history]

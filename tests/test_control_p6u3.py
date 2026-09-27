@@ -28,6 +28,21 @@ def test_beta_anneal_schedule():
     assert trainer.beta_at(99) == pytest.approx(0.02)  # clamped
 
 
+def test_resume_uses_beta_floor(arch_config):
+    """D19: a resumed trainer must continue beta at the floor, not restart."""
+    seed_everything(0)
+    env = gym.make("LunarLander-v3")
+    policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
+    trainer = ControlTrainer(
+        policy, env,
+        ControlRLConfig(beta_start=0.2, beta_end=0.02, updates=10,
+                        episodes_per_update=1, log_every=100),
+        resume=True,
+    )
+    assert trainer.beta_floor == pytest.approx(0.02)
+    env.close()
+
+
 def test_update_runs_and_moves_policy(arch_config):
     """One update collects episodes, backprops, and changes trainable weights."""
     seed_everything(0)
@@ -59,8 +74,9 @@ def test_loss_recomputation_matches_rollout_mode(arch_config):
 
     episode = run_episode(env, policy, seed=1)
     policy.model.eval()
-    loss, _ = trainer._episode_loss(episode, episode.total_reward)
+    loss, _, entropy = trainer._episode_loss(episode, episode.total_reward)
     loss.backward()  # must be differentiable
     assert policy.action_head.weight.grad is not None
     assert torch.isfinite(policy.action_head.weight.grad).all()
+    assert 0.0 <= entropy <= torch.log(torch.tensor(4.0)).item() + 1e-6
     env.close()
