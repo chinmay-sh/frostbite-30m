@@ -245,11 +245,14 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
 
 **AC:** ✅ met — random-init agent completes full episodes end-to-end; shapes verified; seeded rollouts reproducible.
 
-### P6.U2 — Dynamics warm-start on env trajectories ⬜
-- [ ] Collect random-policy dataset (~50k steps); next-obs MSE pretraining reusing the `Phase1Trainer` machinery on env data
-- [ ] Re-run the 30M cap check with adapter params included
+### P6.U2 — Dynamics warm-start on env trajectories ✅
+- [x] `training/control/collect.py`: seeded random-policy trajectory collection (`action_space.seed()` — `reset()` alone is insufficient) → `TrajectoryDataset` (windows → next-obs)
+- [x] `training/control/warm_start.py`: `WarmStartTrainer` (adapter + full trunk, MSE on Score head vs mean next-obs); loads the Phase-1 checkpoint first
+- [x] **Real run (300 episodes, 8 epochs, GPU): loss 0.01638 → 0.00484 (−70%)** vs AC's ≥ 50%; checkpoint `runs/p6/warm.pt`
+- [x] Total incl. control additions: **29,398,924 ≤ 30M cap** ✓
+- [x] Tests: collection determinism, dataset access, loss decrease, cap check (4 tests)
 
-**AC:** Next-obs loss decreases ≥ 50% from init; warm-start checkpoint saved; model still ≤ 30M cap.
+**AC:** ✅ met — next-obs loss −70% (≥ 50% required); warm-start checkpoint saved; cap holds.
 
 ### P6.U3 — Control fine-tuning loop (actor-critic REINFORCE) ⬜
 - [ ] `training/control/train_control.py`: episodes → advantage (R − V(s) via Score head) → policy gradient; entropy guard; β-annealed compute reward; trunk-freeze schedule
