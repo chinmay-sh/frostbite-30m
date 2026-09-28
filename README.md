@@ -39,7 +39,7 @@ Neither compute extreme flies — **the learned per-token mixture is the only wo
 
 ### Control (LunarLander-v3)
 
-Fine-tuned as a control agent via warm-start + Double-DQN (replay, frame-skip 3, potential-based shaping during training only; evaluation always on the raw env). Best stable checkpoint (`runs/p6/control_dqn_v4.pt`, 25 eval episodes): **median −97.5, best +17.6 (clean landing), 14/25 episodes better than −100** — the lander descends under control and occasionally lands. A follow-up run reached returns up to **+76.8** in training but regressed late-run (D30: known DQN consolidation issue) — the gap to reliable landings is consistency, not capability.
+Fine-tuned as a control agent via warm-start + Double-DQN (replay, frame-skip 3, potential-based shaping during training only; evaluation always on the raw env). Best stable checkpoint (`runs/p6/control_dqn_v6.pt`, 25 eval episodes): **median −98.3, worst-case −237, 13/25 episodes better than −100**, near-landings at −43/−46, four training landings (best +8.9). The consolidation fix (Polyak soft targets + prioritized replay, D32/D33) eliminated the crash tail of earlier checkpoints (−415 → −237) and ended training still improving. Peak capability demonstrated at +76.8 (training, D30); the gap to reliable landings is consistency, not capability.
 
 ![Landing demo](docs/assets/landing.gif)
 
