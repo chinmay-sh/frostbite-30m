@@ -35,7 +35,11 @@ class DQNConfig:
     eps_decay_decisions: int = 15_000
     warmup_decisions: int = 1_000  # random acting + no learning before this
     train_freq: int = 1            # gradient steps per decision
-    target_sync_steps: int = 500   # gradient steps between target syncs
+    target_sync_steps: int = 500   # legacy hard-sync interval (unused when tau > 0)
+    tau: float = 0.005             # D32: Polyak soft-update rate; 0 = hard syncs only
+    per_alpha: float = 0.6         # D32: prioritization strength (0 = uniform)
+    per_beta_start: float = 0.4    # D32: IS-weight anneal start
+    per_beta_end: float = 1.0      # D32: IS-weight anneal end
     action_repeat: int = 3
     episodes: int = 600
     solved_return: float = 200.0   # trailing-20 mean stop criterion
@@ -57,7 +61,9 @@ class DQNTrainer:
         self.env = env
         self.config = config or DQNConfig()
         self.seed = seed
-        self.buffer = ReplayBuffer(self.config.buffer_size, seed=seed)
+        self.buffer = ReplayBuffer(
+            self.config.buffer_size, seed=seed, alpha=self.config.per_alpha
+        )
         self.rng = random.Random(seed)
         self.device = next(policy.parameters()).device
         self.optimizer = self._build_optimizer()
@@ -145,12 +151,20 @@ class DQNTrainer:
     # -- learning ------------------------------------------------------------
 
     def _gradient_step(self) -> float:
-        """One Double-DQN update: y = r + gamma * Q_target(s', argmax Q_online(s')).
+        """One Double-DQN update with PER sampling and importance weights.
 
-        The online path computes Q WITH gradients through the (possibly
-        training) trunk; the target path stays fully detached (D24).
+        Online path computes Q WITH grads through the (possibly training)
+        trunk; target path fully detached. Priorities refresh from |TD error|.
         """
-        batch = self.buffer.sample(self.config.batch_size, self.device)
+        # Beta anneals from beta_start to beta_end across the training run.
+        frac = min(1.0, self.gradient_steps / 40_000)
+        beta = (
+            self.config.per_beta_start
+            + (self.config.per_beta_end - self.config.per_beta_start) * frac
+        )
+        batch, weights, indices = self.buffer.sample_prioritized(
+            self.config.batch_size, self.device, beta=beta
+        )
 
         with torch.no_grad():
             next_features = self.target.q_features(batch["next_windows"])
@@ -169,7 +183,11 @@ class DQNTrainer:
         q_pred = self.policy.action_head(out.trunk.mean(dim=1)).gather(
             1, batch["actions"].unsqueeze(1)
         ).squeeze(1)
-        loss = nn.functional.smooth_l1_loss(q_pred, target_q)
+        td_error = q_pred - target_q
+        # Importance weights rescale each sample's loss (PER bias correction).
+        loss = (weights * nn.functional.smooth_l1_loss(
+            q_pred, target_q, reduction="none"
+        )).mean()
 
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -177,13 +195,30 @@ class DQNTrainer:
             [p for g in self.optimizer.param_groups for p in g["params"]], 10.0
         )
         self.optimizer.step()
+        self.buffer.update_priorities(indices, td_error)
         self.gradient_steps += 1
-        if self.gradient_steps % self.config.target_sync_steps == 0:
-            self._sync_target()
+        self._update_target()
         return float(loss.detach().item())
 
+    def _update_target(self) -> None:
+        """Polyak soft update (D32): target <- tau*online + (1-tau)*target.
+
+        Soft updates every step replace the hard 500-step sync whose staleness
+        caused the v5 late-run regression (D30). tau=0 falls back to hard sync.
+        """
+        tau = self.config.tau
+        if tau <= 0:  # legacy hard-sync path
+            if self.gradient_steps % self.config.target_sync_steps == 0:
+                self._sync_target()
+            return
+        with torch.no_grad():
+            for online, target in zip(
+                self.policy.parameters(), self.target.parameters()
+            ):
+                target.mul_(1 - tau).add_(online, alpha=tau)
+
     def _sync_target(self) -> None:
-        """Copy the full online policy into the target (trunk trains now, D24)."""
+        """Copy the full online policy into the target (legacy hard sync)."""
         self.target.load_state_dict(self.policy.state_dict())
 
     # -- loop ------------------------------------------------------------------

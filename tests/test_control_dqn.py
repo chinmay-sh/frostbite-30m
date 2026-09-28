@@ -33,6 +33,53 @@ def test_replay_buffer_roundtrip():
     assert batch["dones"].dtype == torch.float32
 
 
+def test_prioritized_sampling_favors_high_priority():
+    """D32: PER draws high-priority transitions more often.
+
+    p(0) = 100^0.6 / (100^0.6 + 9) ~= 0.64 -> inclusion in a 4-of-10
+    no-replacement draw ~= 0.99 (uniform would be 0.4).
+    """
+    buffer = ReplayBuffer(capacity=10, seed=0)
+    window = torch.zeros(1, 4, 8)
+    for i in range(10):
+        buffer.push(window, 0, float(i), window, False,
+                    priority=100.0 if i == 0 else 1.0)
+    draws_with_zero = 0
+    total_draws = 200
+    for _ in range(total_draws):
+        _, _, indices = buffer.sample_prioritized(4, torch.device("cpu"))
+        draws_with_zero += 1 if 0 in indices else 0
+    assert draws_with_zero / total_draws > 0.8  # vs 0.4 uniform
+
+
+def test_priority_refresh_from_td_error():
+    buffer = ReplayBuffer(capacity=10, seed=0)
+    window = torch.zeros(1, 4, 8)
+    for i in range(4):
+        buffer.push(window, 0, 0.0, window, False)
+    buffer.update_priorities([0, 2], torch.tensor([5.0, 0.1]))
+    assert buffer.priorities[0] == pytest.approx(5.0 + 1e-5)
+    assert buffer.priorities[2] == pytest.approx(0.1 + 1e-5)
+
+
+def test_soft_target_update_moves_slowly(arch_config, env):
+    """D32: tau=0.005 nudges the target a tiny fraction toward online."""
+    seed_everything(0)
+    policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
+    config = DQNConfig(episodes=1, tau=0.005)
+    trainer = DQNTrainer(policy, env, config, seed=0)
+
+    before = trainer.target.action_head.weight.detach().clone()
+    # Nudge every online parameter far away.
+    with torch.no_grad():
+        for p in policy.parameters():
+            p.add_(1.0)
+    trainer._update_target()
+    after = trainer.target.action_head.weight.detach()
+    delta = (after - before).abs().max().item()
+    assert 0.0 < delta <= 0.005 + 1e-6  # tau fraction of the 1.0 nudge
+
+
 def test_replay_buffer_evicts_oldest():
     buffer = ReplayBuffer(capacity=5, seed=0)
     window = torch.zeros(1, 4, 8)
@@ -78,11 +125,11 @@ def test_dqn_trains_and_moves_head(arch_config, env):
 
 
 def test_target_full_policy_copy(arch_config, env):
-    """D24: after sync steps, the FULL target policy matches online."""
+    """D32: tau=0 uses the legacy hard sync — full copy after sync steps."""
     seed_everything(1)
     policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
     config = DQNConfig(episodes=1, warmup_decisions=2, batch_size=8,
-                       action_repeat=2, target_sync_steps=3)
+                       action_repeat=2, target_sync_steps=3, tau=0.0)
     trainer = DQNTrainer(policy, env, config, seed=0)
     while trainer.gradient_steps < 3:
         if len(trainer.buffer) >= config.batch_size:
