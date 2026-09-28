@@ -25,12 +25,13 @@ from training.control.replay_buffer import ReplayBuffer
 class DQNConfig:
     """Double DQN hyperparameters (a *decision* = one model step, incl. frame-skip)."""
 
-    lr: float = 1e-4
+    lr: float = 5e-4                 # Q-head LR (D24: 1e-4 was too slow to escape the idle attractor)
+    trunk_lr: float = 0.0            # D24: >0 unfreezes adapter+embedding+attention (substrates stay frozen)
     buffer_size: int = 100_000
     batch_size: int = 64
     gamma: float = 0.99
     eps_start: float = 1.0
-    eps_end: float = 0.05
+    eps_end: float = 0.02            # D24: 0.05 kept re-crashing the learned policy
     eps_decay_decisions: int = 15_000
     warmup_decisions: int = 1_000  # random acting + no learning before this
     train_freq: int = 1            # gradient steps per decision
@@ -52,19 +53,36 @@ class DQNTrainer:
         seed: int = 0,
     ) -> None:
         self.policy = policy.eval()
-        self.target = copy.deepcopy(self.policy).eval()
+        self.target = copy.deepcopy(self.policy).eval()  # full copy (D24)
         self.env = env
         self.config = config or DQNConfig()
         self.seed = seed
         self.buffer = ReplayBuffer(self.config.buffer_size, seed=seed)
         self.rng = random.Random(seed)
         self.device = next(policy.parameters()).device
-        # Only the Q-head trains; the trunk (and routers) stay frozen features.
-        self.optimizer = torch.optim.Adam(
-            self.policy.action_head.parameters(), lr=self.config.lr
-        )
+        self.optimizer = self._build_optimizer()
         self.decision_step = 0
         self.gradient_steps = 0
+
+    def _build_optimizer(self) -> torch.optim.Adam:
+        """Q-head at lr; with trunk_lr > 0, adapter+embedding+attention join (D24).
+
+        Substrates (CfC) and routers never train here — CfC dynamics stay
+        protected and the routing evidence stays banked.
+        """
+        groups: list[dict] = [
+            {"params": self.policy.action_head.parameters(), "lr": self.config.lr}
+        ]
+        if self.config.trunk_lr > 0:
+            trunk: list[nn.Parameter] = list(self.policy.adapter.parameters())
+            trunk += list(self.policy.model.embedding.parameters())
+            for block in self.policy.model.blocks:
+                trunk += list(block.attention.parameters())
+            self.policy.model.embedding.requires_grad_(True)
+            for block in self.policy.model.blocks:
+                block.attention.requires_grad_(True)
+            groups.append({"params": trunk, "lr": self.config.trunk_lr})
+        return torch.optim.Adam(groups)
 
     # -- acting --------------------------------------------------------------
 
@@ -127,13 +145,18 @@ class DQNTrainer:
     # -- learning ------------------------------------------------------------
 
     def _gradient_step(self) -> float:
-        """One Double-DQN update: y = r + gamma * Q_target(s', argmax Q_online(s'))."""
+        """One Double-DQN update: y = r + gamma * Q_target(s', argmax Q_online(s')).
+
+        The online path computes Q WITH gradients through the (possibly
+        training) trunk; the target path stays fully detached (D24).
+        """
         batch = self.buffer.sample(self.config.batch_size, self.device)
-        features = self.policy.q_features(batch["windows"])  # detached
 
         with torch.no_grad():
-            next_features = self.policy.q_features(batch["next_windows"])
-            best = self.policy.action_head(next_features).argmax(dim=-1)
+            next_features = self.target.q_features(batch["next_windows"])
+            best = self.policy.action_head(
+                self.policy.q_features(batch["next_windows"])
+            ).argmax(dim=-1)
             q_next = self.target.action_head(next_features).gather(
                 1, best.unsqueeze(1)
             ).squeeze(1)
@@ -141,14 +164,18 @@ class DQNTrainer:
                 1 - batch["dones"]
             )
 
-        q_pred = self.policy.action_head(features).gather(
+        sensors = self.policy.adapter(batch["windows"])
+        out = self.policy.model(sensors)  # grads flow through the trunk when training
+        q_pred = self.policy.action_head(out.trunk.mean(dim=1)).gather(
             1, batch["actions"].unsqueeze(1)
         ).squeeze(1)
         loss = nn.functional.smooth_l1_loss(q_pred, target_q)
 
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
-        nn.utils.clip_grad_norm_(self.policy.action_head.parameters(), 10.0)
+        nn.utils.clip_grad_norm_(
+            [p for g in self.optimizer.param_groups for p in g["params"]], 10.0
+        )
         self.optimizer.step()
         self.gradient_steps += 1
         if self.gradient_steps % self.config.target_sync_steps == 0:
@@ -156,10 +183,8 @@ class DQNTrainer:
         return float(loss.detach().item())
 
     def _sync_target(self) -> None:
-        """Copy the online Q-head into the target (trunk is frozen and shared)."""
-        self.target.action_head.load_state_dict(
-            self.policy.action_head.state_dict()
-        )
+        """Copy the full online policy into the target (trunk trains now, D24)."""
+        self.target.load_state_dict(self.policy.state_dict())
 
     # -- loop ------------------------------------------------------------------
 

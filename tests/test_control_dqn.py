@@ -77,19 +77,36 @@ def test_dqn_trains_and_moves_head(arch_config, env):
     assert torch.isfinite(torch.tensor(loss))
 
 
-def test_target_head_tracks_online(arch_config, env):
-    """After target_sync_steps gradient steps, the target matches online."""
+def test_target_full_policy_copy(arch_config, env):
+    """D24: after sync steps, the FULL target policy matches online."""
     seed_everything(1)
     policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
     config = DQNConfig(episodes=1, warmup_decisions=2, batch_size=8,
                        action_repeat=2, target_sync_steps=3)
     trainer = DQNTrainer(policy, env, config, seed=0)
     while trainer.gradient_steps < 3:
-        trainer._gradient_step() if len(trainer.buffer) >= config.batch_size else \
+        if len(trainer.buffer) >= config.batch_size:
+            trainer._gradient_step()
+        else:
             trainer.buffer.push(
                 torch.randn(1, policy.window, 8), 0, 0.0,
                 torch.randn(1, policy.window, 8), False,
             )
-    assert torch.equal(
-        trainer.target.action_head.weight, policy.action_head.weight
-    )
+    for name, online in policy.state_dict().items():
+        target_val = trainer.target.state_dict()[name]
+        assert torch.equal(online, target_val), name
+
+
+def test_trunk_group_join_when_enabled(arch_config, env):
+    """D24: trunk_lr>0 adds the second optimizer group; substrates excluded."""
+    seed_everything(0)
+    policy = ControlPolicy(FrostbiteModel(arch_config), obs_dim=8)
+    config = DQNConfig(episodes=1, trunk_lr=1e-5)
+    trainer = DQNTrainer(policy, env, config, seed=0)
+    assert len(trainer.optimizer.param_groups) == 2
+    trunk_ids = {id(p) for p in trainer.optimizer.param_groups[1]["params"]}
+    for block in policy.model.blocks:
+        for p in block.executor.parameters():
+            assert id(p) not in trunk_ids
+        for p in block.attention.parameters():
+            assert id(p) in trunk_ids

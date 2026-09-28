@@ -21,6 +21,8 @@ def main() -> None:
     parser.add_argument("--resume", default="runs/p6/control.pt")
     parser.add_argument("--episodes", type=int, default=600)
     parser.add_argument("--action-repeat", type=int, default=3)
+    parser.add_argument("--trunk-lr", type=float, default=None,
+                        help="unfreeze adapter+embedding+attention at this LR (D24; default off)")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--save", default="runs/p6/control_dqn.pt")
     args = parser.parse_args()
@@ -44,9 +46,12 @@ def main() -> None:
         episodes=args.episodes,
         action_repeat=args.action_repeat,
     )
+    if args.trunk_lr is not None:
+        config = DQNConfig(**{**config.__dict__, "trunk_lr": args.trunk_lr})
     trainer = DQNTrainer(policy, env, config, seed=args.seed)
     print(f"frame-skip {config.action_repeat} | buffer {config.buffer_size:,} "
-          f"| warmup {config.warmup_decisions} decisions | lr {config.lr}")
+          f"| warmup {config.warmup_decisions} decisions | lr {config.lr} "
+          f"| trunk_lr {config.trunk_lr} | eps_end {config.eps_end}")
 
     history, solved = trainer.train()
 
