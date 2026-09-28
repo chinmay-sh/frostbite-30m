@@ -18,7 +18,7 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
-**Global state:** Phase 4 complete · P5 deferred (D18) · P6 planned · Last updated: 2026-09-26
+**Global state:** Phase 6 complete (U5 skipped, D31) · P5 deferred · Last updated: 2026-09-28
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |
@@ -28,7 +28,7 @@
 | P3 | Full Assembly & Phase-1 Training | 5 | ✅ | P2 |
 | P4 | Phase-2 Reinforcement Learning | 4 | ✅ | P3 |
 | P5 | Edge Deployment (ONNX + Go) | 3 | ⏸ deferred (D18) | P4 |
-| P6 | Real-World Control Fine-Tuning (extension) | 5 | ⬜ planned | P4 |
+| P6 | Real-World Control Fine-Tuning (extension) | 5 | ✅ (U5 skipped) | P4 |
 
 ---
 
@@ -276,15 +276,14 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
   - forced ROUTE-all: **−677.8 ± 359.5** (5.8× worse)
   - → **neither compute extreme works; the learned per-token mixture is what flies** — the adaptive-compute thesis demonstrated in a real control task
 - [x] Per-phase routing (learned policy): P(ROUTE) 0.414 early / 0.306 mid / 0.354 late — routing varies across flight phases, not fixed
-- [x] README results section pending (with final numbers from the shaped-scratch run)
+- [x] README results section ✅ (incl. training profile table) + **landing demo GIF** (`docs/assets/landing.gif`, deterministic greedy seed 5017, `render_demo.py`)
 
 **AC:** ✅ met with caveat — routing behavior differs meaningfully across configurations and phases (demonstrated); the "avg return ≥ 150" landing target is the documented unmet portion (D27).
 
-### P6.U5 — (Stretch) POMDP / second environment ⬜
-- [ ] Masked-observation LunarLander (POMDP) — where CfC memory should shine
-- [ ] Or MuJoCo HalfCheetah for transfer evidence
+### P6.U5 — (Stretch) POMDP / second environment ⏭ Skipped (D31)
+Deferred: the core Phase-6 evidence (ablations, landing demo, phase telemetry) is complete; the POMDP variant is a natural follow-up experiment if the project is extended, not a gap in the current claims.
 
-**AC:** Documented comparison vs the fully-observed baseline.
+**AC:** N/A (skipped by decision D31).
 
 ---
 

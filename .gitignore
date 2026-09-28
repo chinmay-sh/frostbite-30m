@@ -30,3 +30,6 @@ Thumbs.db
 
 # test output files
 *_result.txt
+
+# rendered demos (regenerate via render_demo.py)
+docs/assets/
