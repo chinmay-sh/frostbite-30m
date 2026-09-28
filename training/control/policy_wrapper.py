@@ -38,6 +38,19 @@ class ControlPolicy(nn.Module):
         self.action_head = nn.Linear(model.embedding.input_proj.out_features, 4)
 
     @torch.no_grad()
+    def q_features(self, window_tensor: Tensor) -> Tensor:
+        """Frozen-trunk features for Q-learning: pooled (N, d_model), detached.
+
+        The trunk (and routers) never train in DQN mode — this is a pure
+        feature extractor for the Q-head, so it runs under no_grad and caches
+        nothing: cheap to call for online, target, and replay paths alike.
+        """
+        device = next(self.parameters()).device
+        sensors = self.adapter(window_tensor.to(device))
+        out = self.model(sensors)
+        return out.trunk.mean(dim=1).detach()
+
+    @torch.no_grad()
     def act(self, window_tensor: Tensor) -> ControlDecision:
         """Sample an action for one padded window (1, T, obs_dim)."""
         device = next(self.parameters()).device

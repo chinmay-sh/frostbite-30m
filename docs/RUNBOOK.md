@@ -86,6 +86,21 @@ Output: `runs/p6/control_ppo.pt`.
 
 ## 2. Evaluation
 
+### 1.6 P6 control — Double DQN + frame-skip (Tier 2, D23)
+
+The landing attempt: off-policy replay over the frozen trunk.
+
+```bash
+uv run python training/control/run_dqn.py --resume runs/p6/control.pt \
+    --episodes 600 --action-repeat 3 --save runs/p6/control_dqn.pt
+```
+
+Watch for: `trailing20` climbing steadily once `eps` falls below ~0.3; the run
+stops itself and prints `SOLVED` when the trailing-20 mean reaches +200.
+Frame-skip 3 means each model decision covers 3 physics steps — early episodes
+are random (warm-up: first 1,000 decisions), then replay learning kicks in.
+Output: `runs/p6/control_dqn.pt` (includes `solved` flag + history).
+
 ### 2.1 Routing behavior on telemetry (Milestone-3 table)
 
 ```bash

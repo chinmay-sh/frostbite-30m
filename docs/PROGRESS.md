@@ -266,18 +266,7 @@ REINFORCE (P4.U2) is stable: bounded entropy (0.86–1.06, no collapse over 150 
 - [x] **Continuation attempt 2 (D19 fixes: β-carry, advantage standardization, entropy telemetry):** 130/200 updates, returns flat ~−210, entropy pinned near max → diagnosed entropy-bonus dominance
 - [x] **Continuation attempt 3 (D20 fixes: entropy 0.002, stage-2 trunk unfreeze 1e-5):** stopped at 160/200 by user decision — returns *degrading* (−191 → −275 mean) as the policy committed (entropy 1.35→1.27): policy gradient committing to noise; **parameterization ceiling confirmed** (frozen-ish trunk + 8-dim choice bottleneck → 4 actions)
 
-**Status: 🟨 PPO run (D21/D22) stopped at 140/200 by user decision (2026-09-27, late evening).** Returns plateaued ≈ −190 (random ~−200): mechanisms all healthy (clip ≤0.13, entropy 1.37→1.12 committed, route re-engaged 0.1→0.45), but the policy gains no return from its commitment — variance-limited, per the five-generation evidence trail (D19–D22). Best checkpoint remains `runs/p6/control.pt` (eval −137.3 ± 107.5). No `control_ppo.pt` saved (stopped before completion).
-
-### Next-attempt plan (agreed 2026-09-27, for tomorrow) — "give RL its best shot" package
-
-Implement **all three Tier-1 items together** in one run (not incremental retries):
-1. **Bigger batches + one long continuous run** — `--episodes-per-update 24` (≈3,600 steps/update, in the standard 2k–8k PPO range) and `--updates 500`; do NOT restart mid-run (each restart discards critic calibration — implicated in every failed generation)
-2. **Critic warm-up** — before policy training, pretrain the Score head on observed (window → episode-return) pairs from ~100 random episodes (~30 lines in `run_ppo.py`); kills the garbage-advantage phase that poisons the first ~100 updates
-3. **Action repeat (frame-skip 3)** — hold each action 3 physics steps in `run_episode`: ~3× shorter episodes, denser credit, ~3× faster rollouts
-
-**Tier-2 (only if the package plateaus):** SAC-Discrete or Rainbow-DQN — off-policy replay makes each update draw thousands of decorrelated transitions (~5–10× sample efficiency on LunarLander); new trainer class ~200 lines, same `ControlPolicy` interface.
-
-**Explicitly rejected:** more of the current config (the ~−190 plateau is established), model size increase (representation is not the constraint — supervised losses fit well; also breaks the 30M identity/cap).
+**Status: 🟨 Tier-2 Double DQN implemented (D23, 2026-09-28), staged for launch.** On-policy line closed (five generations, variance-limited at ≈−190): user chose to skip Tier 1 tuning and go off-policy. New: `train_dqn.py` (replay 100K, target head, ε-greedy, frame-skip 3 — the one Tier-1 item kept), `run_dqn.py`, `ReplayBuffer`, `ControlPolicy.q_features` (frozen-trunk features, detached). 126/126 tests green. Launch: `uv run python training/control/run_dqn.py --resume runs/p6/control.pt --episodes 600 --action-repeat 3 --save runs/p6/control_dqn.pt` (RUNBOOK §1.6). Stop criterion: trailing-20 mean ≥ +200 (prints SOLVED).
 
 ### P6.U4 — Evaluation & evidence ⬜
 - [ ] Return curves: learned router vs SKIP-only ablation vs ROUTE-all ablation (same trunk)
