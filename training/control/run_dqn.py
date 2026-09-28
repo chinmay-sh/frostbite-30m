@@ -23,6 +23,8 @@ def main() -> None:
     parser.add_argument("--action-repeat", type=int, default=3)
     parser.add_argument("--trunk-lr", type=float, default=None,
                         help="unfreeze adapter+embedding+attention at this LR (D24; default off)")
+    parser.add_argument("--shape", action="store_true",
+                        help="potential-based reward shaping (D26; eval stays raw)")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--save", default="runs/p6/control_dqn.pt")
     args = parser.parse_args()
@@ -40,6 +42,10 @@ def main() -> None:
     # action_head starts fresh: Q-values, not the old action probabilities.
 
     env = gym.make("LunarLander-v3")
+    if args.shape:
+        from training.control.shaped_env import ShapedLanderEnv
+
+        env = ShapedLanderEnv(env, gamma=0.99)
     env.action_space.seed(args.seed)
 
     config = DQNConfig(
@@ -51,7 +57,8 @@ def main() -> None:
     trainer = DQNTrainer(policy, env, config, seed=args.seed)
     print(f"frame-skip {config.action_repeat} | buffer {config.buffer_size:,} "
           f"| warmup {config.warmup_decisions} decisions | lr {config.lr} "
-          f"| trunk_lr {config.trunk_lr} | eps_end {config.eps_end}")
+          f"| trunk_lr {config.trunk_lr} | eps_end {config.eps_end} "
+          f"| shaping {'ON' if args.shape else 'off'}")
 
     history, solved = trainer.train()
 

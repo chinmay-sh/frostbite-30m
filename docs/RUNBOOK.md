@@ -91,6 +91,13 @@ Output: `runs/p6/control_ppo.pt`.
 The landing attempt: off-policy replay over the frozen trunk.
 
 ```bash
+# shaped variant (D26): dense landing-direction signal, policy-preserving;
+# evaluation stays on the raw env
+uv run python training/control/run_dqn.py --resume runs/p6/control.pt \
+    --episodes 600 --action-repeat 3 --trunk-lr 1e-5 --shape \
+    --save runs/p6/control_dqn_v3.pt
+
+# unshaped
 uv run python training/control/run_dqn.py --resume runs/p6/control.pt \
     --episodes 600 --action-repeat 3 --save runs/p6/control_dqn.pt
 ```
