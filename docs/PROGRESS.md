@@ -18,7 +18,7 @@
 
 **Unit ID convention:** `P<phase>.U<unit>` (e.g., `P2.U3`). **One commit per unit** — when a unit's ACs pass, flip its status here and commit together with the code: `feat(P2.U3): masked halt control flow` (see `AGENTS.md`).
 
-**Global state:** Phase 6 complete (U5 skipped, D31) · P5 deferred · Last updated: 2026-09-28
+**Global state:** Phase 6 complete (U5 skipped, D31) · P5 deferred · v7 consolidation run done (D34) · Last updated: 2026-09-29
 
 | Phase | Title | Units | Status | Depends on |
 | --- | --- | --- | --- | --- |

@@ -39,7 +39,9 @@ Neither compute extreme flies — **the learned per-token mixture is the only wo
 
 ### Control (LunarLander-v3)
 
-Fine-tuned as a control agent via warm-start + Double-DQN (replay, frame-skip 3, potential-based shaping during training only; evaluation always on the raw env). Best stable checkpoint (`runs/p6/control_dqn_v6.pt`, 25 eval episodes): **median −98.3, worst-case −237, 13/25 episodes better than −100**, near-landings at −43/−46, four training landings (best +8.9). The consolidation fix (Polyak soft targets + prioritized replay, D32/D33) eliminated the crash tail of earlier checkpoints (−415 → −237) and ended training still improving. Peak capability demonstrated at +76.8 (training, D30); the gap to reliable landings is consistency, not capability.
+Fine-tuned as a control agent via warm-start + Double-DQN (replay, frame-skip 3, potential-based shaping during training only; evaluation always on the raw env). **Best deployed-policy checkpoint (`runs/p6/control_dqn_v7.pt`, deterministic greedy, 25 eval episodes): median −127.6, worst −214.9, 8/25 episodes better than −100** — a +73-median jump over v6's greedy policy (−200.7) from the consolidation run (D34: 1500 episodes, ε pinned at 0.02, Polyak targets + PER), with shaped-positive training episodes up ~24× (96/1500 vs ~4/600). Peak capability demonstrated at +76.8 (training, D30); the gap to reliable landings is consistency, not capability.
+
+> **Eval-mode note (D34):** earlier reported control numbers (−98.3 median for v6) were produced by a tool running the model in *train mode* (stochastic Gumbel routing + dropout) — real measurements, but not of the deployed deterministic policy. All numbers above are eval-mode greedy unless labeled otherwise; the two tooling paths that diverged (`episode_breakdown.py` vs `evaluate.py`) differed in exactly this axis.
 
 ![Landing demo](docs/assets/landing.gif)
 
